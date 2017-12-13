@@ -23,7 +23,6 @@ class DNN:
         self.dW = []            # Derivatives matrix (P.D. of J, w.r.t. W) of each layer (1..L), dW[t].shape = (n[t], n[t-1]), dW[0] = None
         self.db = []            # Derivatives matrix (P.D. of J, w.r.t. b) of each layer (1..L), db[t].shape = (n[t], 1), db[0] = None
         self.J = 0.0            # Overall cost
-        self.reg_param = 0.0    # Regularization parameter, defalut 0.0 (no regularization)
         self.w_scale = 0.01     # Weight initial value scale, used to randomly initialize weights, default 0.01 is okay to most cases
         self.valid = False      # Network is not constructed well, can't use until call DNN.initialize() correctly
         self.ready = False      # Network has not been fed in dataset, can't learn until call DNN.feed() correctly
@@ -48,7 +47,7 @@ class DNN:
         """
         return self.ready
 
-    def initialize(self, size, acts, reg_param = 0.0, weight_scale = 0.01):
+    def initialize(self, size, acts, weight_scale = 0.01):
         """construct/reconstruct a deep neural network
         
         Todo: verify parameters: len(size) == len(acts) > 2
@@ -60,35 +59,25 @@ class DNN:
             acts {list} -- Activation functions of layers, length = L+1, acts[0] = None, acts[L] = linear or sigmoid
     
         Keyword Arguments:
-            reg_param {number} -- regularization parameter 'lambda', positive float (default: {0.0})
-            weight_scale {number} -- weight scale, positive float, (defalut: {0.01})
+            weight_scale {number} -- weight scale, positive float, do He initialization if 0 (defalut: {0.01})
         """
         assert(len(size) == len(acts) and len(size) > 2)
         self.L = len(size) - 1
         self.n = size
         self.g = acts
-        self.W = [None]
-        self.b = [None]
+        self.W = [None for i in range(self.L + 1)]
+        self.b = [None for i in range(self.L + 1)]
         self.m = 0
-        self.A = [None]
+        self.A = [None for i in range(self.L + 1)]
         self.Y = []
-        self.Z = [None]
-        self.dZ = [None]
-        self.dA = [None]
-        self.dW = [None]
-        self.db = [None]
+        self.Z = [None for i in range(self.L + 1)]
+        self.dZ = [None for i in range(self.L + 1)]
+        self.dA = [None for i in range(self.L + 1)]
+        self.dW = [None for i in range(self.L + 1)]
+        self.db = [None for i in range(self.L + 1)]
         self.J = 0.0
-        for t in range(1, self.L + 1):
-            self.W.append(np.random.randn(self.n[t], self.n[t - 1]) * self.w_scale)
-            self.b.append(np.zeros((self.n[t], 1)))
-            self.A.append(None)
-            self.Z.append(None)
-            self.dZ.append(None)
-            self.dA.append(None)
-            self.dW.append(None)
-            self.db.append(None)
-        self.reg_param = reg_param
         self.w_scale = weight_scale
+        self.initialize_parameters()
         self.valid = True
         self.ready = False
 
@@ -96,24 +85,15 @@ class DNN:
         """randomly initialize parameters
         
         Initialize W with normal distributed random variables, b with zeros.
+        If weight scale <= 0, do He initialization
         """
         assert(self.valid)
         for t in range(1, self.L + 1):
-            self.W[t] = np.random.randn(self.n[t], self.n[t - 1]) * self.w_scale
+            if self.w_scale > 0:
+                self.W[t] = np.random.randn(self.n[t], self.n[t - 1]) * self.w_scale
+            else:
+                self.W[t] = np.random.randn(self.n[t], self.n[t - 1]) * ((2 / self.n[t - 1]) ** 0.5)
             self.b[t] = np.zeros((self.n[t], 1))
-
-
-    def set_regularization_parameter(self, reg_param):
-        """set regularization parameter
-        
-        set new regularization parameter, then initialize parameters (weights and biases)
-        
-        Arguments:
-            reg_param {[type]} -- [description]
-        """
-        assert(self.valid)
-        self.reg_param = reg_param
-        self.randomly_initialize_parameters()
 
     def feed_data(self, X, Y, initweights = True):
         """feed dataset
@@ -141,17 +121,62 @@ class DNN:
         self.is_ready = True
 
     def forward_propagation(self):
+        """forward propagation
+        
+        Do forward propagation to compute predictions Y_hat = A[L]
+        Do dropout regularization if self.regularization == 2
+        """
         assert(self.valid and self.ready)
-        return
+        for t in range(1, self.L):
+            self.Z[t] = np.dot(self.W[t], self.A[t - 1]) + self.b[t]
+            self.A[t] = self.g[t](self.Z[t])
+            # assert(self.A[t].shape == (self.n[t], m))
+            if self.regularization = 2:
+                self.D[t] = np.random.rand(self.A[t].shape[0], self.A[t].shape[1])
+                self.D[t] = (self.D[t] < self.keep_prob[t]) + 0
+                self.A[t] = self.A[t] * self.D[t]
+                self.A[t] = self.A[t] / self.keep_prob[t]
+        self.Z[self.L] = np.dot(self.W[self.L], self.A[self.L - 1]) + self.b[self.L]
+        self.A[self.L] = self.g[self.L](self.Z[self.L])
 
-    def cost_function(self):
+    def cost_function(self, cost):
         assert(self.valid and self.ready)
-        return
+        if cost == 1:     # logarithm cost
+            pass
+        elif cost == 2:     # squared error
+            pass
+
+        if self.regularization == 1:
+            pass
 
     def backward_propagation(self):
         assert(self.valid and self.ready)
         return
 
-    def learn(self, computez_cost = True):
+    def learn(self, cost = 0, regularization = 0, lambd = 0.0, keep_prob = None):
+        """one iteration of learning
+        
+        Do one iteration of forward and backward propagation.
+        
+        Keyword Arguments:
+            compute_cost {number} -- 0 = don't compute cost, 1 = logarithm cost, 2 = squared error cost (default: {0})
+            regularization {number} -- method of regularization, 0 = no regularization, 1 = L2, 2 = dropout
+            lambd {number} -- L2 regularization parameter, less than or equals zero do nothing (default: {0.0})
+            keep_prob {List} -- Dropout keep-probabilities list, L elements, do nothing if None (default: {None})
+        """
         assert(self.valid and self.ready)
-        return
+        if regularization == 1 and lambd > 0:
+            self.lambd = lambd
+            self.regularization = 1
+        elif regularization == 2 and keep_prob != None:
+            self.keep_prob = keep_prob
+            self.D = [None for i in range(self.L)]
+            self.regularization = 2
+        else:
+            self.regularization = 0
+
+        self.forward_propagation()
+        if cost != 0:
+            self.cost_function(cost)
+        self.backward_propagation()
+
