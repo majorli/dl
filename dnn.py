@@ -35,7 +35,7 @@ class DNN:
         Returns:
             [bool] -- network status 'is_reday'
         """
-        return self.is_valid() and self.A[0] != None and self.A[0].shape[1] > 0
+        return self.is_valid() and self.A[0] is not None and self.A[0].shape[1] > 0
 
     def initialize(self, size, acts, weight_scale = 0.01):
         """construct/reconstruct a deep neural network
@@ -135,7 +135,7 @@ class DNN:
             Z[t] = np.dot(W[t], A[t - 1]) + b[t]
             A[t], dG[t] = g[t](Z[t])
             assert(A[t].shape == (n[t], m))
-            if regu_type == 2 and keep_prob != None:
+            if regu_type == 2 and keep_prob is not None:
                 D[t] = np.random.rand(A[t].shape[0], A[t].shape[1])
                 D[t] = (D[t] < keep_prob[t]) + 0
                 A[t] = A[t] * D[t]
@@ -217,7 +217,7 @@ class DNN:
 
         for t in range(L - 1, 0, -1):
             dA[t] = np.dot(W[t + 1].T, dZ[t + 1])
-            if regu_type == 2 and keep_prob != None:
+            if regu_type == 2 and keep_prob is not None:
                 dA[t] = dA[t] * D[t]
                 dA[t] = dA[t] / keep_prob[t]
             dZ[t] = dA[t] * dG[t]
@@ -245,7 +245,7 @@ class DNN:
         assert(self.is_ready())
 
         dG, D = self.forward_propagation(regu_type, keep_prob)
-        J = self.cost(cost_type, lambd)
+        J = self.cost(cost_type, regu_type, lambd)
         dW, db = self.backward_propagation(regu_type, lambd, keep_prob, dG, D)
 
         return J, dW, db
