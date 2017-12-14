@@ -1,4 +1,7 @@
-# Neural Network Class
+# Deep Neural Network Class
+#
+# Deep Neural Network is a kind of deep learning model.
+# All model class should provide same interfaces and data structures.
 
 import numpy as np
 
@@ -175,9 +178,9 @@ class DNN:
             # L2 regularization cost
             s = 0.0
             for t in range(1, L + 1):
-                s += np.sum(np.square(self.W[t]))
+                s = s + np.sum(np.square(self.W[t]))
             s = s * lambd / (2 * m)
-            J += s
+            J = J + s
 
         return J
 
@@ -251,16 +254,41 @@ class DNN:
         return J, dW, db
 
     def predict(self, X):
+        """compute predictions
+        
+        one pass of forward propagation without any regularization
+        
+        Arguments:
+            X {np.ndarray} -- dataset
+        
+        Returns:
+            [np.ndarray] -- predictions
+        """
         assert(self.is_ready())
         assert(X.shape[0] == self.n[0])
-        # TODO
-        pass
-        return Y_hat
+        self.A[0] = X
+        n = self.n
+        L = len(n) - 1
+        W = self.W
+        b = self.b
+        g = self.g
+        Z = self.Z
+        A = self.A
+        m = X.shape[1]
+        dG = [None for i in range(L + 1)]
+        for t in range(1, L):
+            Z[t] = np.dot(W[t], A[t - 1]) + b[t]
+            A[t], dG[t] = g[t](Z[t])
+            assert(A[t].shape == (n[t], m))
+        return A[L]
 
-    def get_weights(self):
+    def get_parameters(self):
+        """retrieve parameters
+        
+        return current weights and biases, client can modify them directly.
+        
+        Returns:
+            List, List -- Weights and biases
+        """
         assert(self.is_valid() and self.is_ready())
-        return W_vec, b_vec
-
-    def set_weights(self, W_vec, b_vec):
-        assert(self.is_valid() and self.is_ready())
-        return
+        return self.W, self.b
