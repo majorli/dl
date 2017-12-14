@@ -135,7 +135,7 @@ class DNN:
             Z[t] = np.dot(W[t], A[t - 1]) + b[t]
             A[t], dG[t] = g[t](Z[t])
             assert(A[t].shape == (n[t], m))
-            if regu_type = 2 and keep_prob != None:
+            if regu_type == 2 and keep_prob != None:
                 D[t] = np.random.rand(A[t].shape[0], A[t].shape[1])
                 D[t] = (D[t] < keep_prob[t]) + 0
                 A[t] = A[t] * D[t]
