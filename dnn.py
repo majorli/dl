@@ -9,43 +9,33 @@ class DNN:
         
         Initialize object to invalid and not ready state, create members of object
         """
-        self.L = 0              # Number of layers, including the output layer but excluding the input layer
         self.n = []             # Number of units in each layer (0..L), n[0] = number of features, n[L] = dimension of the prediction
         self.g = []             # Activation function for each layer (1..L), g[0] is nothing but a placeholder, usually is None
         self.W = []             # Weights matrix of each layer (1..L), W[t].shape = (n[t], n[t-1]), W[0] = None, a placeholder
         self.b = []             # Biases matrix of each layer (1..L), b[t].shape = (n[t], 1), b[0] = None, a placeholder
-        self.m = 0              # Number of examples in X
         self.A = []             # List of output matrices of each layer, A[0] = X (examples), A[L] = Y_hat (predictions), A[t].shape = (n[t], m)
         self.Y = []             # Labels matrix corresponding to X, Y.shape = (n[L], m)
         self.Z = []             # Intermediate output matrix of each layer (1..L),  Z[t].shape = (n[t] * m), Z[0] = None, a placeholder
-        self.dZ = []            # Derivatives matrix (P.D. of J, w.r.t. Z) of each layer (1..L), dZ[t].shape = (n[t], m), dZ[0] = None
-        self.dA = []            # Derivatives matrix (P.D. of J, w.r.t. A) of each layer (1..L), dA[t].shape = (n[t], m), dA[0] = None
-        self.dW = []            # Derivatives matrix (P.D. of J, w.r.t. W) of each layer (1..L), dW[t].shape = (n[t], n[t-1]), dW[0] = None
-        self.db = []            # Derivatives matrix (P.D. of J, w.r.t. b) of each layer (1..L), db[t].shape = (n[t], 1), db[0] = None
-        self.J = 0.0            # Overall cost
-        self.w_scale = 0.01     # Weight initial value scale, used to randomly initialize weights, default 0.01 is okay to most cases
-        self.valid = False      # Network is not constructed well, can't use until call DNN.initialize() correctly
-        self.ready = False      # Network has not been fed in dataset, can't learn until call DNN.feed() correctly
 
     def is_valid(self):
         """is the network valid?
         
-        Check the network status 'is_valid'
+        L = len(n) - 1 >= 2 <====> Valid
         
         Returns:
             [bool] -- network status 'is_valid'
         """
-        return self.valid
+        return len(self.n) > 2
 
     def is_ready(self):
         """is the network ready to learn?
         
-        Check the network status 'is_ready'
+        m = A[0].shape[1] > 0 <===> Ready
         
         Returns:
             [bool] -- network status 'is_reday'
         """
-        return self.ready
+        return self.is_valid() and self.A[0] != None and self.A[0].shape[1] > 0
 
     def initialize(self, size, acts, weight_scale = 0.01):
         """construct/reconstruct a deep neural network
@@ -62,40 +52,39 @@ class DNN:
             weight_scale {number} -- weight scale, positive float, do He initialization if 0 (defalut: {0.01})
         """
         assert(len(size) == len(acts) and len(size) > 2)
-        self.L = len(size) - 1
+        # Network properties
         self.n = size
         self.g = acts
-        self.W = [None for i in range(self.L + 1)]
-        self.b = [None for i in range(self.L + 1)]
-        self.m = 0
-        self.A = [None for i in range(self.L + 1)]
+        self.W = [None for i in range(len(size))]
+        self.b = [None for i in range(len(size))]
+        # Data
+        self.A = [None for i in range(len(size))]
         self.Y = []
-        self.Z = [None for i in range(self.L + 1)]
-        self.dZ = [None for i in range(self.L + 1)]
-        self.dA = [None for i in range(self.L + 1)]
-        self.dW = [None for i in range(self.L + 1)]
-        self.db = [None for i in range(self.L + 1)]
-        self.J = 0.0
-        self.w_scale = weight_scale
-        self.initialize_parameters()
-        self.valid = True
-        self.ready = False
+        self.Z = [None for i in range(len(size))]
+        self.initialize_parameters(weight_scale)
 
-    def initialize_parameters(self):
+    def initialize_parameters(self, weight_scale):
         """randomly initialize parameters
         
         Initialize W with normal distributed random variables, b with zeros.
         If weight scale <= 0, do He initialization
-        """
-        assert(self.valid)
-        for t in range(1, self.L + 1):
-            if self.w_scale > 0:
-                self.W[t] = np.random.randn(self.n[t], self.n[t - 1]) * self.w_scale
-            else:
-                self.W[t] = np.random.randn(self.n[t], self.n[t - 1]) * ((2 / self.n[t - 1]) ** 0.5)
-            self.b[t] = np.zeros((self.n[t], 1))
 
-    def feed_data(self, X, Y, initweights = True):
+        Arguments:
+            weight_scale {number} -- weight scale, positive float, do He initialization if 0
+        """
+        assert(self.is_valid())
+        n = self.n
+        L = len(n) - 1
+        W = self.W
+        b = self.b
+        for t in range(1, L + 1):
+            if weight_scale > 0:
+                W[t] = np.random.randn(n[t], n[t - 1]) * weight_scale
+            else:
+                W[t] = np.random.randn(n[t], n[t - 1]) * ((2 / n[t - 1]) ** 0.5)
+            b[t] = np.zeros((n[t], 1))
+
+    def feed_data(self, X, Y, init_weights = True, weight_scale = 0.01):
         """feed dataset
         
         feed in dataset X and corresponding label Y.
@@ -110,73 +99,168 @@ class DNN:
         
         Keyword Arguments:
             initweights {bool} -- randomly initialize weights and biases after data fed (default: {True})
+            weight_scale {number} -- weight scale, positive float, do He initialization if 0 (defalut: {0.01})
         """
-        assert(self.valid)
-        assert(X.shape[1] == Y.shape[1] and X.shape[0] == self.n[0] and Y.shape[0] == self.n[self.L])
+        assert(self.is_valid())
+        assert(X.shape[1] == Y.shape[1] and X.shape[0] == self.n[0] and Y.shape[0] == self.n[len(self.n) - 1])
         self.A[0] = X
         self.Y = Y
-        self.m = X.shape[1]
-        if initweights == True:
-            self.randomly_initialize_parameters()
-        self.is_ready = True
+        if init_weights == True:
+            self.initialize_parameters(weight_scale)
 
-    def forward_propagation(self):
+    def forward_propagation(self, regu_type, keep_prob):
         """forward propagation
         
         Do forward propagation to compute predictions Y_hat = A[L]
-        Do dropout regularization if self.regularization == 2
+        Do dropout regularization if retu_type == 2 and keep_prob != None
+
+        Arguments:
+            regu_type {number} -- method of regularization, 0 = no regularization, 1 = L2, 2 = dropout
+            keep_prob {List} -- Dropout keep-probabilities list, L elements, do nothing if None (default: {None})
+
+        Returns:
+            List, List -- g'(z) list, Dropout masks list
         """
-        assert(self.valid and self.ready)
-        for t in range(1, self.L):
-            self.Z[t] = np.dot(self.W[t], self.A[t - 1]) + self.b[t]
-            self.A[t] = self.g[t](self.Z[t])
-            # assert(self.A[t].shape == (self.n[t], m))
-            if self.regularization = 2:
-                self.D[t] = np.random.rand(self.A[t].shape[0], self.A[t].shape[1])
-                self.D[t] = (self.D[t] < self.keep_prob[t]) + 0
-                self.A[t] = self.A[t] * self.D[t]
-                self.A[t] = self.A[t] / self.keep_prob[t]
-        self.Z[self.L] = np.dot(self.W[self.L], self.A[self.L - 1]) + self.b[self.L]
-        self.A[self.L] = self.g[self.L](self.Z[self.L])
+        n = self.n
+        L = len(n) - 1
+        W = self.W
+        b = self.b
+        g = self.g
+        Z = self.Z
+        A = self.A
+        m = A[0].shape[1]
+        D = [None for i in range(L)]        # masks for dropout
+        dG = [None for i in range(L + 1)]   # g'(z) for each layer 1..L
+        for t in range(1, L):
+            Z[t] = np.dot(W[t], A[t - 1]) + b[t]
+            A[t], dG[t] = g[t](Z[t])
+            assert(A[t].shape == (n[t], m))
+            if regu_type = 2 and keep_prob != None:
+                D[t] = np.random.rand(A[t].shape[0], A[t].shape[1])
+                D[t] = (D[t] < keep_prob[t]) + 0
+                A[t] = A[t] * D[t]
+                A[t] = A[t] / keep_prob[t]
+        Z[L] = np.dot(W[L], A[L - 1]) + b[L]
+        A[L], dG[L] = g[L](Z[L])
 
-    def cost_function(self, cost):
-        assert(self.valid and self.ready)
-        if cost == 1:     # logarithm cost
-            pass
-        elif cost == 2:     # squared error
-            pass
+        return dG, D
 
-        if self.regularization == 1:
-            pass
+    def cost(self, cost_type, regu_type, lambd):
+        """compute overall cost
 
-    def backward_propagation(self):
-        assert(self.valid and self.ready)
-        return
+        Compute overall cost value
+        L2 regularization if regu_type == 2 and lambd > 0
 
-    def learn(self, cost = 0, regularization = 0, lambd = 0.0, keep_prob = None):
+        Arguments:
+            cost_type {number} -- 0 = don't compute cost, 1 = logarithm cost, 2 = squared error cost
+            regu_type {number} -- method of regularization, 0 = no regularization, 1 = L2, 2 = dropout
+            lambd {number} -- L2 regularization parameter, less than or equals zero do nothing
+
+        Returns:
+            number -- overall cost value or 0.0 if cost_type == 0
+        """
+        J = 0.0
+        Y = self.Y
+        L = len(self.n) - 1
+        Y_hat = self.A[L]
+        m = self.A[0].shape[1]
+        if cost_type == 1:
+            # logarithm cost
+            J = - np.sum(Y * np.log(Y_hat) + (1 - Y) * np.log(1 - Y_hat)) / m
+        elif cost_type == 2:
+            # squared error
+            J = np.sum(np.square(Y_hat - Y)) / (2 * m)
+
+        if cost_type != 0 and regu_type == 1 and lambd > 0:
+            # L2 regularization cost
+            s = 0.0
+            for t in range(1, L + 1):
+                s += np.sum(np.square(self.W[t]))
+            s = s * lambd / (2 * m)
+            J += s
+
+        return J
+
+    def backward_propagation(self, regu_type, lambd, keep_prob, dG, D):
+        """backward propagation
+
+        Do backward propagation to compute gradients
+
+        Arguments:
+            regu_type {number} -- method of regularization, 0 = no regularization, 1 = L2, 2 = dropout
+            lambd {number} -- L2 regularization parameter, less than or equals zero do nothing
+            keep_prob {List} -- Dropout keep-probabilities list, L elements, do nothing if None
+            dG {List} -- g'(z) list for each layer 1 to L
+            D {List} -- dropout masks list for each layer 1 to L, generated by forward propagation
+
+        Return:
+            List, List -- Gradients dW, db
+        """
+        n = self.n
+        L = len(n) - 1
+        A = self.A
+        Z = self.Z
+        Y = self.Y
+        W = self.W
+        b = self.b
+        m = A[0].shape[1]
+        dZ = [None for i in range(L + 1)]            # Derivatives matrix (P.D. of J, w.r.t. Z) of each layer (1..L), dZ[t].shape = (n[t], m), dZ[0] = None
+        dA = [None for i in range(L + 1)]            # Derivatives matrix (P.D. of J, w.r.t. A) of each layer (1..L), dA[t].shape = (n[t], m), dA[0] = None
+        dW = [None for i in range(L + 1)]            # Derivatives matrix (P.D. of J, w.r.t. W) of each layer (1..L), dW[t].shape = (n[t], n[t-1]), dW[0] = None
+        db = [None for i in range(L + 1)]            # Derivatives matrix (P.D. of J, w.r.t. b) of each layer (1..L), db[t].shape = (n[t], 1), db[0] = None
+
+        dZ[L] = A[L] - Y
+        dW[L] = np.dot(dZ[L], A[L - 1].T) / m
+        if regu_type == 1 and lambd > 0:
+            dW[L] = dW[L] + lambd / m * W[L]
+        db[L] = np.mean(dZ[L], axis = 1, keepdims = True)
+
+        for t in range(L - 1, 0, -1):
+            dA[t] = np.dot(W[t + 1].T, dZ[t + 1])
+            if regu_type == 2 and keep_prob != None:
+                dA[t] = dA[t] * D[t]
+                dA[t] = dA[t] / keep_prob[t]
+            dZ[t] = dA[t] * dG[t]
+            dW[t] = np.dot(dZ[t], A[t - 1].T) / m
+            if regu_type == 1 and lambd > 0:
+                dW[t] = dW[t] + lambd / m * W[t]
+            db[t] = np.mean(dZ[t], axis = 1, keepdims = True)
+
+        return dW, db
+
+    def learn(self, cost_type = 0, regu_type = 0, lambd = 0.0, keep_prob = None):
         """one iteration of learning
         
         Do one iteration of forward and backward propagation.
         
         Keyword Arguments:
-            compute_cost {number} -- 0 = don't compute cost, 1 = logarithm cost, 2 = squared error cost (default: {0})
-            regularization {number} -- method of regularization, 0 = no regularization, 1 = L2, 2 = dropout
+            cost_type {number} -- 0 = don't compute cost, 1 = logarithm cost, 2 = squared error cost (default: {0})
+            regu_type {number} -- method of regularization, 0 = no regularization, 1 = L2, 2 = dropout (default: {0})
             lambd {number} -- L2 regularization parameter, less than or equals zero do nothing (default: {0.0})
             keep_prob {List} -- Dropout keep-probabilities list, L elements, do nothing if None (default: {None})
+
+        Returns:
+            number, List, List -- Cost, derivatives of weights, derivatives of biases
         """
-        assert(self.valid and self.ready)
-        if regularization == 1 and lambd > 0:
-            self.lambd = lambd
-            self.regularization = 1
-        elif regularization == 2 and keep_prob != None:
-            self.keep_prob = keep_prob
-            self.D = [None for i in range(self.L)]
-            self.regularization = 2
-        else:
-            self.regularization = 0
+        assert(self.is_ready())
 
-        self.forward_propagation()
-        if cost != 0:
-            self.cost_function(cost)
-        self.backward_propagation()
+        dG, D = self.forward_propagation(regu_type, keep_prob)
+        J = self.cost(cost_type, lambd)
+        dW, db = self.backward_propagation(regu_type, lambd, keep_prob, dG, D)
 
+        return J, dW, db
+
+    def predict(self, X):
+        assert(self.is_ready())
+        assert(X.shape[0] == self.n[0])
+        # TODO
+        pass
+        return Y_hat
+
+    def get_weights(self):
+        assert(self.is_valid() and self.is_ready())
+        return W_vec, b_vec
+
+    def set_weights(self, W_vec, b_vec):
+        assert(self.is_valid() and self.is_ready())
+        return
