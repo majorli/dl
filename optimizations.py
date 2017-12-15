@@ -12,23 +12,43 @@
 #  in a same structure: a "List" of "numpy matrices", corresponding elements should be in
 #  the same shape.
 
-def grad_desc(model, learning_rate, predict_type = 1, regu_type = 0, regu_params = None, max_iters = 2500, monitor_step = 100):
-	"""gradient descent
-	
-	Optimize a model by gradient descent
-	
-	Arguments:
-		model {Object} -- a learning model object
-		learning_rate {number} -- learning rate
-	
-	Keyword Arguments:
-		predict_type {number} -- 1 = classification, 2 = regression (default: {1})
-		regu_type {number} -- 0 = no regularization, 1 = L2, 2 = dropout (default: {0})
-		regu_params {number of List} -- None if no regularization, lambda if L2, keep_prob list if dropout (default: {None})
-		max_iters {number} -- max number of iterations (default: {2500})
-		monitor_step {number} -- step of monitoring cost (default: {100})
-	
-	Returns:
-		List -- List of tuples (iteration number, cost)
-	"""
-	return Costs
+def grad_desc(model, learning_rate, predict_type = 1, regu_type = 0, regu_params = None, num_iters = 2500, monitor_step = 100):
+    """gradient descent
+    
+    Optimize a model by gradient descent
+    
+    Arguments:
+        model {Object} -- a learning model object
+        learning_rate {number} -- learning rate
+    
+    Keyword Arguments:
+        predict_type {number} -- 1 = classification, 2 = regression (default: {1})
+        regu_type {number} -- 0 = no regularization, 1 = L2, 2 = dropout (default: {0})
+        regu_params {number of List} -- None if no regularization, lambda if L2, keep_prob list if dropout (default: {None})
+        num_iters {number} -- number of iterations (default: {2500})
+        monitor_step {number} -- step of monitoring cost (default: {100})
+    
+    Returns:
+        List -- List of tuples (iteration number, cost)
+    """
+
+    assert(model.is_ready())
+    Costs = []
+    J = 0.0
+    dW = None
+    db = None
+    W = None
+    b = None
+
+    for i in range(num_iters):
+        if (i % monitor_step == 0 or i == num_iters - 1):
+            J, dW, db = model.learn(cost_type = predict_type, regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
+            Costs.append((i, J))
+        else:
+            J, dW, db = model.learn(regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
+        W, b = model.get_parameters()
+        for t in range(1, len(W)):
+            W[t] = W[t] - learning_rate * dW[t]
+            b[t] = b[t] - learning_rate * db[t]
+
+    return Costs
