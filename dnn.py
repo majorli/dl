@@ -276,7 +276,7 @@ class DNN:
         A = self.A
         m = X.shape[1]
         dG = [None for i in range(L + 1)]
-        for t in range(1, L):
+        for t in range(1, L + 1):
             Z[t] = np.dot(W[t], A[t - 1]) + b[t]
             A[t], dG[t] = g[t](Z[t])
             assert(A[t].shape == (n[t], m))
