@@ -40,7 +40,7 @@ class DNN:
         """
         return self.is_valid() and self.A[0] is not None and self.A[0].shape[1] > 0
 
-    def initialize(self, size, acts, weight_scale = 0.01):
+    def initialize(self, size, acts, weight_scale = 0):
         """construct/reconstruct a deep neural network
         
         Todo: verify parameters: len(size) == len(acts) > 2
@@ -52,7 +52,7 @@ class DNN:
             acts {list} -- Activation functions of layers, length = L+1, acts[0] = None, acts[L] = linear or sigmoid
     
         Keyword Arguments:
-            weight_scale {number} -- weight scale, positive float, do He initialization if 0 (defalut: {0.01})
+            weight_scale {number} -- weight scale, positive float, do He initialization if 0 (defalut: {0})
         """
         assert(len(size) == len(acts) and len(size) > 2)
         # Network properties
@@ -66,14 +66,14 @@ class DNN:
         self.Z = [None for i in range(len(size))]
         self.initialize_parameters(weight_scale)
 
-    def initialize_parameters(self, weight_scale):
+    def initialize_parameters(self, weight_scale = 0):
         """randomly initialize parameters
         
         Initialize W with normal distributed random variables, b with zeros.
         If weight scale <= 0, do He initialization
 
-        Arguments:
-            weight_scale {number} -- weight scale, positive float, do He initialization if 0
+        Keyword Arguments:
+            weight_scale {number} -- weight scale, positive float, do He initialization if 0 (default:{0})
         """
         assert(self.is_valid())
         n = self.n
@@ -87,7 +87,7 @@ class DNN:
                 W[t] = np.random.randn(n[t], n[t - 1]) * ((2 / n[t - 1]) ** 0.5)
             b[t] = np.zeros((n[t], 1))
 
-    def feed_data(self, X, Y, init_weights = True, weight_scale = 0.01):
+    def feed_data(self, X, Y, init_weights = True, weight_scale = 0):
         """feed dataset
         
         feed in dataset X and corresponding label Y.
@@ -102,7 +102,7 @@ class DNN:
         
         Keyword Arguments:
             initweights {bool} -- randomly initialize weights and biases after data fed (default: {True})
-            weight_scale {number} -- weight scale, positive float, do He initialization if 0 (defalut: {0.01})
+            weight_scale {number} -- weight scale, positive float, do He initialization if 0 (defalut: {0})
         """
         assert(self.is_valid())
         assert(X.shape[1] == Y.shape[1] and X.shape[0] == self.n[0] and Y.shape[0] == self.n[len(self.n) - 1])

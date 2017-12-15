@@ -12,7 +12,7 @@
 #  in a same structure: a "List" of "numpy matrices", corresponding elements should be in
 #  the same shape.
 
-def grad_desc(model, learning_rate, predict_type = 1, regu_type = 0, regu_params = None, num_iters = 2500, monitor_step = 100):
+def grad_desc(model, learning_rate, predict_type = 1, regu_type = 0, regu_params = None, num_iters = 5000, monitor_step = 100, print_cost = True):
     """gradient descent
     
     Optimize a model by gradient descent
@@ -27,6 +27,7 @@ def grad_desc(model, learning_rate, predict_type = 1, regu_type = 0, regu_params
         regu_params {number of List} -- None if no regularization, lambda if L2, keep_prob list if dropout (default: {None})
         num_iters {number} -- number of iterations (default: {2500})
         monitor_step {number} -- step of monitoring cost (default: {100})
+        print_cost {bool} -- print out cost values (default: {True})
     
     Returns:
         List -- List of tuples (iteration number, cost)
@@ -44,6 +45,8 @@ def grad_desc(model, learning_rate, predict_type = 1, regu_type = 0, regu_params
         if (i % monitor_step == 0 or i == num_iters - 1):
             J, dW, db = model.learn(cost_type = predict_type, regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
             Costs.append((i, J))
+            if (print_cost == True):
+                print((i, J))
         else:
             J, dW, db = model.learn(regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
         W, b = model.get_parameters()
