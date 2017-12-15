@@ -12,7 +12,7 @@
 import numpy as np
 
 
-def normalize(X, stdev=False, centerize=False):
+def normalize(X, mean = None, stdev = None):
     """
     
     Normalize features
@@ -21,28 +21,26 @@ def normalize(X, stdev=False, centerize=False):
         X {np.ndarray} -- dataset
     
     Keyword Arguments:
-        stdev {bool} -- do normalization by using standard deviation (default: {False})
-        centerize {bool} -- minus the mean of data to centered to zero (default: {False})
+        mean {number} -- mean used to zero out data, None = use mean of given data, (default: {None})
+        stdev {number} -- standard deviation to normalize data, None = use stdev of given data (default: {None})
     
     Returns:
-        np.ndarray -- normalized dataset
+        np.ndarray, number, number -- normalized data, mean, stdev
     """
-    
-    _X = X.astype(float)
-
-    if centerize == True:
-        X_mean = np.mean(_X, axis=1, keepdims=True)
-        _X -= X_mean
-
-    X_norm = None
-    if stdev == True:
-        X_norm = np.std(_X, axis=1, keepdims=True)
+    if mean is not None:
+        mu = mean
     else:
-        X_norm = np.linalg.norm(_X, axis=1, ord=2, keepdims=True)
-    print(str(X_norm))
-    _X /= X_norm
+        mu = np.mean(X, axis = 1, keepdims = True)
+    X = X - mu
 
-    return _X
+    if stdev is not None:
+        sigma = stdev
+    else:
+        sigma = np.std(X, axis = 1, keepdims = True)
+
+    X = X / sigma
+
+    return X, mu, sigma
 
 
 def softmax(X):
