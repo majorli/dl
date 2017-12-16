@@ -25,6 +25,11 @@ NONE = 0
 L2 = 1
 DROPOUT = 2
 
+# constants for weight initialization types:
+HE_RELU = 1
+HE_TANH = 2
+HE_OTHERS = 3
+
 # *************** #
 #    DL_Models    #
 # *************** #
@@ -69,7 +74,7 @@ class DNN:
         """
         return self.is_valid() and self.A[0] is not None and self.A[0].shape[1] > 0
 
-    def initialize(self, size, acts, weight_type = 3):
+    def initialize(self, size, acts, weight_type = 1):
         """construct/reconstruct a deep neural network
         
         Todo: verify parameters: len(size) == len(acts) > 2
@@ -81,7 +86,7 @@ class DNN:
             acts {list} -- Activation functions of layers, length = L+1, acts[0] = None, acts[L] = linear or sigmoid
     
         Keyword Arguments:
-            weight_type {number} -- 1.0 = He init for ReLU, 2.0 = He init for Tanh, 3.0 = He init for hetero, between 0 and 1 = scale (defalut: {3})
+            weight_type {number} -- 1 = He init for ReLU, 2 = He init for Tanh, 3 = He init for hetero (defalut: {1})
         """
         assert(len(size) == len(acts) and len(size) > 2)
         # Network properties
@@ -95,14 +100,14 @@ class DNN:
         self.Z = [None for i in range(len(size))]
         self.initialize_parameters(weight_type)
 
-    def initialize_parameters(self, weight_type = 3):
+    def initialize_parameters(self, weight_type = 1):
         """randomly initialize parameters
         
         Initialize W with normal distributed random variables, b with zeros.
         If weight scale <= 0, do He initialization
 
         Keyword Arguments:
-            weight_type {number} -- 1.0 = He init for ReLU, 2.0 = He init for Tanh, 3.0 = He init for hetero, between 0 and 1 = scale (defalut: {3})
+            weight_type {number} -- 1 = He init for ReLU, 2 = He init for Tanh, 3 = He init for hetero (defalut: {1})
         """
         assert(self.is_valid())
         n = self.n
@@ -111,17 +116,15 @@ class DNN:
         b = self.b
         for t in range(1, L + 1):
             W[t] = np.random.randn(n[t], n[t - 1])
-            if weight_type >= 3:
+            if weight_type == 3:
                 W[t] = W[t] * ((2 / n[t - 1] + n[t]) ** 0.5)
-            elif weight_type >= 2:
+            elif weight_type == 2:
                 W[t] = W[t] * ((1 / n[t - 1]) ** 0.5)
-            elif weight_type >= 1:
+            elif weight_type == 1:
                 W[t] = W[t] * ((2 / n[t - 1]) ** 0.5)
-            elif weight_type > 0:
-                W[t] = W[t] * weight_type
             b[t] = np.zeros((n[t], 1))
 
-    def feed_data(self, X, Y, init_weights = True, weight_type = 3):
+    def feed_data(self, X, Y, init_weights = True, weight_type = 1):
         """feed dataset
         
         feed in dataset X and corresponding label Y.
@@ -136,7 +139,7 @@ class DNN:
         
         Keyword Arguments:
             init_weights {bool} -- randomly initialize weights and biases after data fed (default: {True})
-            weight_type {number} -- 1.0 = He init for ReLU, 2.0 = He init for Tanh, 3.0 = He init for hetero, between 0 and 1 = scale (defalut: {3})
+            weight_type {number} -- 1 = He init for ReLU, 2 = He init for Tanh, 3 = He init for hetero (defalut: {1})
         """
         assert(self.is_valid())
         assert(X.shape[1] == Y.shape[1] and X.shape[0] == self.n[0] and Y.shape[0] == self.n[len(self.n) - 1])
