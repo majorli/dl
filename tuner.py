@@ -66,7 +66,7 @@ def precision(Y, Predict, model_type = 1):
     
     Arguments:
         Y {np.ndarray} -- labels matrix
-        Predict {np.ndarray} -- predicts matrix
+        Predict {np.ndarray} -- predict matrix
     
     Keyword Arguments:
         model_type {number} -- 1, 2, or 3, Constants defined in 'models' module (default: {1})
@@ -78,11 +78,9 @@ def precision(Y, Predict, model_type = 1):
     m = Y.shape[1]
 
     if model_type == 1 or model_type == 3:
-        Yhat = (Predict >= 0.5) + 0.0
-        prec = np.sum((Y == Yhat), axis = 1, keepdims = True) / m
+        prec = np.sum((Y == Predict), axis = 1, keepdims = True) / m
     elif model_type == 2:
-        Yhat = Predict - Y
-        prec = np.linalg.norm(Yhat, axis = 1, keepdims = True) / m
+        prec = np.linalg.norm(Predict - Y, axis = 1, keepdims = True) / m
     else:
         prec = 0.0
     return prec

@@ -419,3 +419,44 @@ def tanh(z):
 
     return a, da
 
+# ******************** #
+# prediction utilities #
+# ******************** #
+
+def classify(Y):
+    """classify
+    
+    Get classification results from the output of a classification model.
+    
+    Arguments:
+        Y {np.ndarray} -- predict result from a classification model
+
+    Returns:
+        ndarray -- [[1 0 ...]] for one-class classification problems,
+                   [[0 i j ...]] for multi-class classification problems (1,...,n for n-th class, 0 for non-class)
+    """
+    if (Y.shape[0] == 1):
+        C = (Y >= 0.5) + 0
+    else:
+        M = (np.amax(Y, axis = 0, keepdims = True) >= 0.5) + 0
+        D = np.argmax(Y, axis = 0).reshape((1, Y.shape[1]))
+        C = D * M + M
+
+    return C
+
+def regression(Y, lbound = -np.Inf, ubound = np.Inf):
+    """regression
+
+    Get bounded regression results from the output of a regression model.
+
+    Arguments:
+        Y {np.ndarray} -- predict result from a regression model
+
+    Keyword Arguments:
+        lbound {number} -- lower bound {default: (-infinity)}
+        ubound {number} -- upper bound {default: (infinity)}
+
+    Returns:
+        ndarray -- bounded regression predictions
+    """
+    return np.minimum(np.maximum(Y, lbound), ubound) + 0.0
