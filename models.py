@@ -5,7 +5,36 @@
 
 import numpy as np
 
+# *************** #
+#    Constants    #
+# *************** #
+
+# constants for model types:
+CLASSIFICATION_NN = 1
+REGRESSION_NN = 2
+SVM = 3
+K_MEANS = 4
+
+# constants for cost types:
+ZERO = 0
+LOGARITHM = 1
+SQUARED_ERROR = 2
+
+# constants for regularization types:
+NONE = 0
+L2 = 1
+DROPOUT = 2
+
+# *************** #
+#    DL_Models    #
+# *************** #
+
 class DNN:
+    """Deep neural network
+    
+    Deep neural nework model, for both regression nn and classification nn
+    
+    """
 
     def __init__(self):
         """constructor of object DNN (Deep Neural Network)
@@ -261,7 +290,8 @@ class DNN:
     def predict(self, X):
         """compute predictions
         
-        one pass of forward propagation without any regularization
+        One pass of forward propagation without any regularization.
+        Predicting will not change any data stored in the model.
         
         Arguments:
             X {np.ndarray} -- dataset
@@ -271,21 +301,16 @@ class DNN:
         """
         assert(self.is_ready())
         assert(X.shape[0] == self.n[0])
-        self.A[0] = X
-        n = self.n
-        L = len(n) - 1
+        A = X
         W = self.W
         b = self.b
         g = self.g
-        Z = self.Z
-        A = self.A
         m = X.shape[1]
-        dG = [None for i in range(L + 1)]
-        for t in range(1, L + 1):
-            Z[t] = np.dot(W[t], A[t - 1]) + b[t]
-            A[t], dG[t] = g[t](Z[t])
-            assert(A[t].shape == (n[t], m))
-        return A[L]
+        for t in range(1, len(self.n)):
+            Z = np.dot(W[t], A) + b[t]
+            A, __temp__ = g[t](Z)
+            assert(A.shape == (self.n[t], m))
+        return A
 
     def get_parameters(self):
         """retrieve parameters
@@ -297,3 +322,97 @@ class DNN:
         """
         assert(self.is_valid() and self.is_ready())
         return self.W, self.b
+
+# ******************** #
+# Activation functions #
+# ******************** #
+
+
+def linear(z, lbound = -np.Inf, ubound = np.Inf):
+    """Bounded linear function
+    
+    a = z if lbound < z < ubound;
+      = lbound if z <= lbound;
+      = ubound if z >= ubound
+    a' = 1 if lbound <= z <= ubound;
+       = 0 otherwise
+    
+    Arguments:
+        z {np.ndarray} -- input values
+    
+    Keyword Arguments:
+        lbound {number} -- lower bound (default: {-infinite})
+        ubound {number} -- upper bound (default: {infinite})
+
+    Returns:
+        np.ndarray -- a, da = a'
+    """
+    a = np.minimum(np.maximum(z, lbound), ubound) + 0.0
+    da = ((z <= ubound) & (z >= lbound)) + 0.0
+    return a, da
+
+
+def identity(z):
+    return linear(z)
+
+
+def relu(z):
+    return linear(z, lbound = 0.0)
+
+
+def leaky_relu(z, slope = 0.01):
+    """leaky ReLU
+    
+    a = max(slope * z, z)
+    a' = 1 if z >= 0.0
+       = slope if z < 0.0
+    
+    Arguments:
+        z {np.ndarray} -- input values
+    
+    Keyword Arguments:
+        slope {number} -- slope when z < 0.0, between 0,0 and 1.0 (default: {0.01})
+    
+    Returns:
+        np.ndarray -- a, da = a'
+    """
+    a = np.maximum(z, slope * z) + 0.0
+    da = (z >= 0) + (z < 0) * slope
+    return a, da
+
+
+def sigmoid(z):
+    """sigmoid
+
+    a = 1 / (1 + exp(-z))
+    a' = a * (1-a)
+
+    Arguments:
+        z {np.ndarray} -- input values
+
+    Returns:
+        np.ndarray -- a, da = a'
+    """
+    a = 1.0 / (1 + np.exp(-z))
+    da = a * (1.0 - a)
+
+    return a, da
+
+
+def tanh(z):
+    """tanh
+
+    a = tanh(z)
+    a' = 1 - a ^ 2
+
+    Arguments:
+        z {np.ndarray} -- input values
+
+    Returns:
+        np.ndarray -- a, da = a'
+    """
+    a = np.tanh(z)
+    da = 1.0 - a ** 2
+
+    return a, da
+

@@ -11,6 +11,9 @@
 
 import numpy as np
 
+# ***************** #
+# Dataset Utilities #
+# ***************** #
 
 def normalize(X, mean = None, stdev = None):
     """
@@ -42,7 +45,6 @@ def normalize(X, mean = None, stdev = None):
 
     return X, mu, sigma
 
-
 def softmax(X):
     """
     
@@ -55,14 +57,11 @@ def softmax(X):
     Returns:
         np.ndarray -- softmaximized dataset
     """
+    X_exp = np.exp(X)
+    X_sum = np.sum(X_exp, axis = 1, keepdims = True)
+    X = X_exp / X_sum
 
-    _X = X.astype(float)
-    X_exp = np.exp(_X)
-    X_sum = np.sum(X_exp, axis=1, keepdims=True)
-    _X = X_exp / X_sum
-
-    return _X
-
+    return X
 
 def shuffle(X):
     """
@@ -75,5 +74,20 @@ def shuffle(X):
     Returns:
         np.ndarray -- shuffled dataset
     """
-    
     return np.random.permutation(X.T).T
+
+# ****************** #
+# Dataset generators #
+# ****************** #
+
+def round_ds(dims = 2, num = 100, scale = 20.0, rad = 6.0, blur = 1.0, alien = 0.02):
+    X = np.random.rand(dims, num) * scale
+    N = np.linalg.norm(X - scale / 2, ord = 2, axis = 0, keepdims = True)
+    Y = ((N < rad - blur) | ((N >= rad - blur) & (N <= rad + blur) & (np.random.rand(N.shape[0], N.shape[1]) < 0.5))) ^ (np.random.rand(N.shape[0], N.shape[1]) < alien)
+    return X, Y + 0.0
+
+def roundn_ds(dims = 2, num = 100, mu = 0.0, stdev = 1.0, rad = 1.0, blur = 0.2, alien = 0.02):
+    X = np.random.normal(mu, stdev, (dims, num))
+    N = np.linalg.norm(X - mu, ord = 2, axis = 0, keepdims = True)
+    Y = ((N < rad - blur) | ((N >= rad - blur) & (N <= rad + blur) & (np.random.rand(N.shape[0], N.shape[1]) < 0.5))) ^ (np.random.rand(N.shape[0], N.shape[1]) < alien)
+    return X, Y + 0.0
