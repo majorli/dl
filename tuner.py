@@ -87,7 +87,7 @@ def precision(Y, Predict, model_type = 1):
         prec[1] = np.sum(Yp, axis = 1, keepdims = True) / m
     elif model_type == 2:
         Diff = (Predict - Y)
-        prec[0] = np.linalg.norm(Diff, axis = 1, keepdims = True) / m
-        prec[1] = np.linalg.norm(Diff, keepdims = True) / (Y.shape[0] * m)
+        prec[0] = np.linalg.norm(Diff, axis = 1, keepdims = True) / (m ** 0.5)
+        prec[1] = np.linalg.norm(Diff, keepdims = True) / ((Y.shape[0] * m) ** 0.5)
 
     return prec

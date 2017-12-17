@@ -74,6 +74,42 @@ class DNN:
         """
         return self.is_valid() and self.A[0] is not None and self.A[0].shape[1] > 0
 
+    def save(self, fn):
+        assert(self.is_valid() and fn is not None)
+        _g = [None]
+        for i in range(1, len(self.g)):
+            _g.append(str(self.g[i]).split()[1])
+        np.savez(fn, n = self.n, g = _g, W = self.W, b = self.b)
+        return
+
+    def load(self, fn):
+        assert(fn is not None)
+        npz = np.load(fn + ".npz")
+        self.n = list(npz["n"])
+        self.W = list(npz["W"])
+        self.b = list(npz["b"])
+        _g = list(npz["g"])
+        self.g = [None]
+        for i in range(1, len(_g)):
+            if _g[i] == "relu":
+                self.g.append(relu)
+            elif _g[i] == "tanh":
+                self.g.append(tanh)
+            elif _g[i] == "sigmoid":
+                self.g.append(sigmoid)
+            elif _g[i] == "identity":
+                self.g.append(identity)
+            else:
+                if i == len(_g) - 1:
+                    self.g.append(sigmoid)
+                else:
+                    self.g.append(relu)
+        self.A = [None for i in range(len(self.n))]
+        self.Y = []
+        self.Z = [None for i in range(len(self.n))]
+
+        return
+
     def initialize(self, size, acts, weight_type = 1):
         """construct/reconstruct a deep neural network
         
@@ -302,7 +338,7 @@ class DNN:
         Returns:
             [np.ndarray] -- predictions
         """
-        assert(self.is_ready())
+        assert(self.is_valid())
         assert(X.shape[0] == self.n[0])
         A = X
         W = self.W
