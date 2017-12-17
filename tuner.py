@@ -76,11 +76,18 @@ def precision(Y, Predict, model_type = 1):
     """
     assert(Y.shape == Predict.shape)
     m = Y.shape[1]
+    prec = [None, None]
 
     if model_type == 1 or model_type == 3:
-        prec = np.sum((Y == Predict), axis = 1, keepdims = True) / m
+        Pm = np.amax(Predict, axis = 0, keepdims = True)
+        Yhat = (Predict >= Pm) & (Predict >= 0.5)
+        Diff = (Y == Yhat)
+        prec[0] = np.sum(Diff, axis = 1, keepdims = True) / m
+        Yp = np.alltrue(Diff, axis = 0, keepdims = True)
+        prec[1] = np.sum(Yp, axis = 1, keepdims = True) / m
     elif model_type == 2:
-        prec = np.linalg.norm(Predict - Y, axis = 1, keepdims = True) / m
-    else:
-        prec = 0.0
+        Diff = (Predict - Y)
+        prec[0] = np.linalg.norm(Diff, axis = 1, keepdims = True) / m
+        prec[1] = np.linalg.norm(Diff, keepdims = True) / (Y.shape[0] * m)
+
     return prec
