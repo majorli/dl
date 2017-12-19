@@ -35,14 +35,14 @@ HE_OTHERS = 3
 
 class DNN:
     """Deep neural network
-    
+
     Deep neural nework model, for both regression nn and classification nn
-    
+
     """
 
     def __init__(self):
         """constructor of object DNN (Deep Neural Network)
-        
+
         Initialize object to invalid and not ready state, create members of object
         """
         self.n = []             # Number of units in each layer (0..L), n[0] = number of features, n[L] = dimension of the prediction
@@ -55,9 +55,9 @@ class DNN:
 
     def is_valid(self):
         """is the network valid?
-        
+
         L = len(n) - 1 >= 2 <====> Valid
-        
+
         Returns:
             [bool] -- network status 'is_valid'
         """
@@ -65,9 +65,9 @@ class DNN:
 
     def is_ready(self):
         """is the network ready to learn?
-        
+
         m = A[0].shape[1] > 0 <===> Ready
-        
+
         Returns:
             [bool] -- network status 'is_reday'
         """
@@ -111,15 +111,15 @@ class DNN:
 
     def initialize(self, size, acts, weight_type = 1):
         """construct/reconstruct a deep neural network
-        
+
         Todo: verify parameters: len(size) == len(acts) > 2
               init network structures, hyperparameters, parameters and learning data
               set state to valid, not ready
-        
+
         Arguments:
             size {list} -- Structure of networks, length = L+1, n[t] = number of units in layer t, n[0] = n_x, n[L] = dim(Y)
             acts {list} -- Activation functions of layers, length = L+1, acts[0] = None, acts[L] = linear or sigmoid
-    
+
         Keyword Arguments:
             weight_type {number} -- 1 = He init for ReLU, 2 = He init for Tanh, 3 = He init for hetero (defalut: {1})
         """
@@ -137,7 +137,7 @@ class DNN:
 
     def initialize_parameters(self, weight_type = 1):
         """randomly initialize parameters
-        
+
         Initialize W with normal distributed random variables, b with zeros.
         If weight scale <= 0, do He initialization
 
@@ -161,17 +161,17 @@ class DNN:
 
     def feed_data(self, X, Y, init_weights = True, weight_type = 1):
         """feed dataset
-        
+
         feed in dataset X and corresponding label Y.
         Todo: verify dataset: X.shape[0] == n[0]; Y.shape[0] == n[L]; X.shape[1] == Y.shape[1]
               set A[0] = X, self.Y = Y, m = X.shape[1]
               randomly initialize W if initparams == True
               set network status to 'ready'
-        
+
         Arguments:
             X {np.ndarray} -- Matrix of examples' feature vectors, X.shape = (n[0], m)
             Y {np.ndarray} -- Matrix of labels corresponding to dataset X, Y.shape = (n[L], m)
-        
+
         Keyword Arguments:
             init_weights {bool} -- randomly initialize weights and biases after data fed (default: {True})
             weight_type {number} -- 1 = He init for ReLU, 2 = He init for Tanh, 3 = He init for hetero (defalut: {1})
@@ -185,7 +185,7 @@ class DNN:
 
     def forward_propagation(self, regu_type, keep_prob):
         """forward propagation
-        
+
         Do forward propagation to compute predictions Y_hat = A[L]
         Do dropout regularization if retu_type == 2 and keep_prob != None
 
@@ -305,9 +305,9 @@ class DNN:
 
     def learn(self, cost_type = 0, regu_type = 0, lambd = 0.0, keep_prob = None):
         """one iteration of learning
-        
+
         Do one iteration of forward and backward propagation.
-        
+
         Keyword Arguments:
             cost_type {number} -- 0 = don't compute cost, 1 = logarithm cost, 2 = squared error cost (default: {0})
             regu_type {number} -- method of regularization, 0 = no regularization, 1 = L2, 2 = dropout (default: {0})
@@ -327,13 +327,13 @@ class DNN:
 
     def predict(self, X):
         """compute predictions
-        
+
         One pass of forward propagation without any regularization.
         Predicting will not change any data stored in the model.
-        
+
         Arguments:
             X {np.ndarray} -- dataset
-        
+
         Returns:
             [np.ndarray] -- predictions
         """
@@ -352,9 +352,9 @@ class DNN:
 
     def get_parameters(self):
         """retrieve parameters
-        
+
         return current weights and biases, client can modify them directly.
-        
+
         Returns:
             List, List -- Weights and biases
         """
@@ -368,16 +368,16 @@ class DNN:
 
 def linear(z, lbound = -np.Inf, ubound = np.Inf):
     """Bounded linear function
-    
+
     a = z if lbound < z < ubound;
       = lbound if z <= lbound;
       = ubound if z >= ubound
     a' = 1 if lbound <= z <= ubound;
        = 0 otherwise
-    
+
     Arguments:
         z {np.ndarray} -- input values
-    
+
     Keyword Arguments:
         lbound {number} -- lower bound (default: {-infinite})
         ubound {number} -- upper bound (default: {infinite})
@@ -400,17 +400,17 @@ def relu(z):
 
 def leaky_relu(z, slope = 0.01):
     """leaky ReLU
-    
+
     a = max(slope * z, z)
     a' = 1 if z >= 0.0
        = slope if z < 0.0
-    
+
     Arguments:
         z {np.ndarray} -- input values
-    
+
     Keyword Arguments:
         slope {number} -- slope when z < 0.0, between 0,0 and 1.0 (default: {0.01})
-    
+
     Returns:
         np.ndarray -- a, da = a'
     """
@@ -460,9 +460,9 @@ def tanh(z):
 
 def classify(Y):
     """classify
-    
+
     Get classification results from the output of a classification model.
-    
+
     Arguments:
         Y {np.ndarray} -- predict result from a classification model
 
