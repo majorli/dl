@@ -55,6 +55,37 @@ def grad_desc_dnn(model, learning_rate, cost_type = 1, regu_type = 0, regu_param
 
     return Costs
 
+def mini_batch_gd(model, Xt, Yt, learning_rate, cost_type = 1, regu_type = 0, regu_params = None, monitor_cost = False):
+    """mini-batch gradient descent
+    
+    one iteration of mini-batch gradient descent
+    
+    Arguments:
+        model {Object} -- a learning model object
+        Xt {array} -- one mini-batch examples
+        Yt {array} -- one mini-batch labels
+        learning_rate {number} -- learning rate
+    
+    Keyword Arguments:
+        cost_type {number} -- 1 = classification, 2 = regression. Constants define in 'models' module (default: {1})
+        regu_type {number} -- 0 = no regularization, 1 = L2, 2 = dropout (default: {0})
+        regu_params {number of List} -- None if no regularization, lambda if L2, keep_prob list if dropout (default: {None})
+        monitor_cost {bool} -- compute and return the overall cost (default: {False})
+    
+    Returns:
+        number -- overall cost, 0.0 if monitor_cost == False
+    """
+    assert(model.is_ready())
+    model.feed_data(Xt, Yt, init_weights = False)
+    J, dW, db = model.learn(cost_type = monitor_cost * cost_type, regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
+    W, b = model.get_parameters()
+    for t in range(1, len(W)):
+        W[t] = W[t] - learning_rate * dW[t]
+        b[t] = b[t] - learning_rate * db[t]
+
+    return J
+
+
 # ******************** #
 # Evaluation functions #
 # ******************** #
