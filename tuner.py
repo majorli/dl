@@ -59,7 +59,7 @@ def grad_desc_dnn(model, learning_rate, cost_type = 1, regu_type = 0, regu_param
 # Evaluation functions #
 # ******************** #
 
-def precision(Y, Predict, model_type = 1):
+def evaluate(Y, Predict, model_type = 1):
     """compute precision
     
     For regressions, compute average Frobenius norm; For classification problems, compute precision.
@@ -72,22 +72,43 @@ def precision(Y, Predict, model_type = 1):
         model_type {number} -- 1, 2, or 3, Constants defined in 'models' module (default: {1})
 
     Returns:
-        np.ndarray -- precision
+        Dictionary -- accuracy, precision, recall, F1 for classifications:
+                        {
+                            "accuracy"  :   array, Y.shape[0] * 1, accuracy for each label
+                            "precision" :   array, Y.shape[0] * 1, precision for each label
+                            "reccall"   :   array, Y.shape[0] * 1, recall for each label
+                            "F1"        :   array, Y.shape[0] * 1, F1 score for each label
+                            "acc_ova"   :   number, overall accuracy
+                        }
+                      accuracy, Frobenius norm for regression:
+                        {
+                            "accuracy"  :   array, Y.shape[0] * 1, accuracy for each label
+                            "worst_acc" :   array, Y.shape[0] * 1, worst accuracy for each label
+                            "avg_err"   :   array, Y.shape[0] * 1, average absolute error for each label
+                            "max_err"   :   array, Y.shape[0] * 1, maximum absolute error for each label
+                            "Frob_norm" :   number, average Frobenius norm for all examples
+                        }
     """
     assert(Y.shape == Predict.shape)
     m = Y.shape[1]
-    prec = [None, None]
+    prec = {}
 
-    if model_type == 1 or model_type == 3:
-        Pm = np.amax(Predict, axis = 0, keepdims = True)
-        Yhat = (Predict >= Pm) & (Predict >= 0.5)
-        Diff = (Y == Yhat)
-        prec[0] = np.sum(Diff, axis = 1, keepdims = True) / m
-        Yp = np.alltrue(Diff, axis = 0, keepdims = True)
-        prec[1] = np.sum(Yp, axis = 1, keepdims = True) / m
+    if model_type == 1:
+        Yhat = (Predict >= np.amax(Predict, axis = 0, keepdims = True)) & (Predict >= 0.5)
+        tp = np.sum((Y == True) & (Yhat ==True), axis = 1, keepdims = True)
+        tn = np.sum((Y == False) & (Yhat == False), axis = 1, keepdims = True)
+        prec["accuracy"] = (tp + tn) / m
+        prec["precision"] = tp / np.sum(Yhat, axis = 1, keepdims = True)
+        prec["recall"] = tp / np.sum(Y, axis = 1, keepdims = True)
+        prec["F1"] = 2 * prec["precision"] * prec["recall"] / (prec["precision"] + prec["recall"])
+        prec["acc_ova"] = np.sum(np.alltrue(Y == Yhat, axis = 0, keepdims = True), axis = 1, keepdims = True) / m
     elif model_type == 2:
-        Diff = (Predict - Y)
-        prec[0] = np.linalg.norm(Diff, axis = 1, keepdims = True) / (m ** 0.5)
-        prec[1] = np.linalg.norm(Diff, keepdims = True) / ((Y.shape[0] * m) ** 0.5)
+        E = np.abs(Predict - Y)
+        A = E / Y
+        prec["accuracy"] = np.mean(A, axis = 1, keepdims = True)
+        prec["worst_acc"] = np.amax(A, axis = 1, keepdims = True)
+        prec["avg_error"] = np.mean(E, axis = 1, keepdims = True)
+        prec["max_error"] = np.amax(E, axis = 1, keepdims = True)
+        prec["Frob_norm"] = np.linalg.norm(E, axis = 0, keepdims = True)
 
     return prec

@@ -12,8 +12,7 @@ import numpy as np
 # constants for model types:
 CLASSIFICATION_NN = 1
 REGRESSION_NN = 2
-SVM = 3
-K_MEANS = 4
+K_MEANS = 3
 
 # constants for cost types:
 ZERO = 0
