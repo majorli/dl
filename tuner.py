@@ -8,6 +8,14 @@
 
 import numpy as np
 
+# *************** #
+#    Constants    #
+# *************** #
+
+# constants for model types:
+CLASSIFICATION = 1
+REGRESSION = 2
+
 # ********************** #
 # Optimization functions #
 # ********************** #
