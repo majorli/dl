@@ -63,7 +63,7 @@ def softmax(X):
 
     return X
 
-def shuffle(X):
+def shuffle(X, Y = None):
     """
     
     Shuffle examples in dataset
@@ -74,7 +74,13 @@ def shuffle(X):
     Returns:
         np.ndarray -- shuffled dataset
     """
-    return np.random.permutation(X.T).T
+    permutation = np.random.permutation(X.shape[1])
+    X_shuffled = X[:, permutation]
+    if Y is not None and Y.shape[1] == X.shape[1]:
+        Y_shuffled = Y[:, permutation]
+    else:
+        Y_shuffled = Y
+    return X_shuffled, Y_shuffled
 
 # ****************** #
 # Dataset generators #

@@ -7,6 +7,7 @@
 #  performance of the model under dev/test set.
 
 import numpy as np
+import math
 
 # *************** #
 #    Constants    #
@@ -20,7 +21,7 @@ REGRESSION = 2
 # Optimization functions #
 # ********************** #
 
-def grad_desc_dnn(model, learning_rate, cost_type = 1, regu_type = 0, regu_params = None, num_iters = 5000, monitor_step = 100, print_cost = True):
+def grad_desc_dnn(model, learning_rate, cost_type = 1, regu_type = 0, regu_params = None, num_iters = 10000, monitor_step = 100):
     """gradient descent
     
     Optimize a model by gradient descent
@@ -48,50 +49,70 @@ def grad_desc_dnn(model, learning_rate, cost_type = 1, regu_type = 0, regu_param
     W = None
     b = None
 
+    print("Start", end = "", flush = True)
     for i in range(num_iters):
-        if (i % monitor_step == 0 or i == num_iters - 1):
+        if (monitor_step > 0 and i % monitor_step == 0) or (i == 0 or i == num_iters - 1):
             J, dW, db = model.learn(cost_type = cost_type, regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
             Costs.append((i, J))
-            if (print_cost == True):
-                print((i, J))
         else:
             J, dW, db = model.learn(regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
         W, b = model.get_parameters()
         for t in range(1, len(W)):
             W[t] = W[t] - learning_rate * dW[t]
             b[t] = b[t] - learning_rate * db[t]
+        if (i % 100 == 0):
+            print(".", end = "", flush = True)
+    print("Finished!")
 
     return Costs
 
-def mini_batch_gd(model, Xt, Yt, learning_rate, cost_type = 1, regu_type = 0, regu_params = None, monitor_cost = False):
+def mini_batch(model, X, Y, learning_rate, mini_batch_size = 64, cost_type = 1, regu_type = 0, regu_params = None, num_epochs = 10000, monitor_step = 100):
     """mini-batch gradient descent
     
-    one iteration of mini-batch gradient descent
+    mini-batch gradient descent, before call this function, X and Y should be shuffled and normalized.
     
     Arguments:
         model {Object} -- a learning model object
-        Xt {array} -- one mini-batch examples
-        Yt {array} -- one mini-batch labels
+        X {array} -- examples
+        Y {array} -- labels
         learning_rate {number} -- learning rate
     
     Keyword Arguments:
         cost_type {number} -- 1 = classification, 2 = regression. Constants define in 'models' module (default: {1})
         regu_type {number} -- 0 = no regularization, 1 = L2, 2 = dropout (default: {0})
-        regu_params {number of List} -- None if no regularization, lambda if L2, keep_prob list if dropout (default: {None})
-        monitor_cost {bool} -- compute and return the overall cost (default: {False})
-    
+        regu_params {number or List} -- None if no regularization, lambda if L2, keep_prob list if dropout (default: {None})
+        num_epochs {number} -- number of epochs (default: {10000})
+        monitor_step {number} -- step of monitoring cost (default: {100})
+
     Returns:
         number -- overall cost, 0.0 if monitor_cost == False
     """
-    assert(model.is_ready())
-    model.feed_data(Xt, Yt, init_weights = False)
-    J, dW, db = model.learn(cost_type = monitor_cost * cost_type, regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
-    W, b = model.get_parameters()
-    for t in range(1, len(W)):
-        W[t] = W[t] - learning_rate * dW[t]
-        b[t] = b[t] - learning_rate * db[t]
+    assert(model.is_valid())
+    Costs = []
+    m = X.shape[1]
+    num_batches = math.ceil(m / mini_batch_size)
 
-    return J
+    print("Start", end = "", flush = True)
+    for e in range(num_epochs):
+        for t in range(num_batches):
+            if t == num_batches - 1:
+                model.feed_data(X[:, mini_batch_size * t : ], Y[:, mini_batch_size * t : ], init_weights = False)
+            else:
+                model.feed_data(X[:, mini_batch_size * t : (mini_batch_size) * (t + 1)], Y[:, mini_batch_size * t : (mini_batch_size) * (t + 1)], init_weights = False)
+            if t == num_batches - 1 and ((monitor_step > 0 and e % monitor_step == 0) or (e == 0 or e == num_epochs - 1)):
+                J, dW, db = model.learn(cost_type = cost_type, regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
+                Costs.append((e, J))
+            else:
+                J, dW, db = model.learn(regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
+            W, b = model.get_parameters()
+            for t in range(1, len(W)):
+                W[t] = W[t] - learning_rate * dW[t]
+                b[t] = b[t] - learning_rate * db[t]
+        if (e % 100 == 0):
+            print(".", end = "", flush = True)
+    print("Finished!")
+
+    return Costs
 
 
 # ******************** #
