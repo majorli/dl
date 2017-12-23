@@ -64,7 +64,7 @@ class DNN:
         m = A[0].shape[1] > 0 <===> Ready
 
         Returns:
-            [bool] -- network status 'is_reday'
+            [bool] -- network status 'is_ready'
         """
         return self.is_valid() and self.A[0] is not None and self.A[0].shape[1] > 0
 
@@ -353,7 +353,7 @@ class DNN:
         Returns:
             List, List -- Weights and biases
         """
-        assert(self.is_valid() and self.is_ready())
+        assert(self.is_valid())
         return self.W, self.b
 
 # ******************** #
