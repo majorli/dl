@@ -82,6 +82,42 @@ def shuffle(X, Y = None):
         Y_shuffled = Y
     return X_shuffled, Y_shuffled
 
+def raise_ord(X, ord = 2):
+    n = X.shape[0]
+    items = []
+    nums = []
+
+    for first in range(n):
+        lst = [first for i in range(ord)]
+        while lst[0] == first:
+            s = True
+            for k in range(ord-1, 0, -1):
+                if lst[k] < lst[k-1]:
+                    s = False
+                    break
+            if s:
+                items.append(lst.copy())
+            lst[ord-1] += 1
+            for j in range(ord-1, 0, -1):
+                if lst[j] >= n:
+                    lst[j] = first
+                    lst[j-1] += 1
+
+    for l in range(len(items)):
+        xl = np.ones(X.shape[1])
+        for i in range(len(items[l])):
+            xl = xl * X[items[l][i], :]
+        nums.append(xl)
+
+    return np.array(nums)
+
+def polynomial(X, ord=2):
+    _X = X.copy()
+    for d in range(2, ord+1):
+        _X = np.vstack((_X, raise_ord(X, d)))
+
+    return _X
+
 # ****************** #
 # Dataset generators #
 # ****************** #
