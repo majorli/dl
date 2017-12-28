@@ -147,7 +147,7 @@ class DNN:
         for t in range(1, L + 1):
             W[t] = np.random.randn(n[t], n[t - 1])
             if weight_type == 3:
-                W[t] = W[t] * ((2 / n[t - 1] + n[t]) ** 0.5)
+                W[t] = W[t] * ((2 / (n[t - 1] + n[t])) ** 0.5)
             elif weight_type == 2:
                 W[t] = W[t] * ((1 / n[t - 1]) ** 0.5)
             elif weight_type == 1:

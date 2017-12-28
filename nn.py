@@ -17,8 +17,8 @@ RELU = 1
 TANH = 2
 LEAKY_RELU = 3
 BOUNDED_LINEAR = 4
-SOFTMAX = 6
-SIGMOID = 5
+SOFTMAX = 5
+SIGMOID = 6
 LINEAR = 7
 
 # Weight Initialization Types:
@@ -55,6 +55,9 @@ class NNLayer:
         self.act_param = act_param      # activation function parameter(s)
         self.dropout = False            # used dropout last forward propagation
         self.A = None                   # layer final output
+        self.W = None                   # matrix of layer weights, shape = n * n_prev
+        self.b = None                   # vector of bias, also used as vector of beta when BN, dim = n
+        self.gamma = None               # vector of gamma when BN, dim = 4
         return
 
     def forward_propagate(self, inp, keep_prob=None, batch_norm=True):
@@ -66,8 +69,33 @@ class NNLayer:
     def update_parameters(self, batch_norm=True):
         return
 
-    def initialize_parameters(self, prev_layer_size, batch_norm=True, init_type=HE_RELU):
-        # TODO 28/Dec/2017 14:35
+    def initialize_parameters(self, prev_layer_size, init_type=None, batch_norm=True):
+        """initialize parameters
+
+        Initialize parameters W, b, or W, beta, gamma by using Gaussian distributed random values
+
+        Arguments:
+            prev_layer_size -- Number of units of the previous layer
+
+        Keyword Arguments:
+            init_type -- HE_RELU, HE_TANH or HE_OTHERS, None to initialize according activation or HE_OTHERS for output layer (default {None})
+            batch_norm -- Initialize BN parameters if True (default: {True})
+        """
+        self.b = np.zeros((self.n, 1))
+    
+        if batch_norm:
+            self.gamma = np.ones((self.n, 1))
+        else:
+            self.gamma = None
+
+        self.W = np.random.randn(self.n, prev_layer_size)
+        if (init_type is None and self.act == RELU) or (init_type == HE_RELU):
+            self.W = self.W * ((2 / prev_layer_size) ** 0.5)
+        elif (init_type is None and self.act == TANH) or (init_type == HE_TANH):
+            self.W = self.W * ((1 / prev_layer_size) ** 0.5)
+        else:
+            self.W = self.W * ((2 / (self.n + prev_layer_size)) ** 0.5)
+
         return
 
 class NNModel:
@@ -86,7 +114,7 @@ class NNModel:
             hidden_layers -- List of layer instances for all hidden layers (default {[]})
             model_type -- Neural network type, SOFTMAX_REGRESSION, SIGMOID_REGRESSION, LINEAR_REGRESSION (default: {LOGISTIC_REGRESSION})
         """
-        self.type = model_type
+        self.model_type = model_type        # model type
         self.layers = [NNLayer(dim_input, act=None)] + hidden_layers     # [Input layer, hidden layer 1, ... , hidden layer L-1, output layer L], len(self.layers) = L + 1
         if model_type == SOFTMAX_REGRESSION:
             self.layers.append(NNLayer(dim_output, SOFTMAX))
@@ -94,7 +122,9 @@ class NNModel:
             self.layers.append(NNLayer(dim_output, LINEAR))
         else:
             self.layers.append(NNLayer(dim_output, SIGMOID))
-            self.type = LOGISTIC_REGRESSION
+            self.model_type = LOGISTIC_REGRESSION
+
+        self.Y = None                       # train/dev/test set labels
 
         return
 
@@ -110,6 +140,22 @@ class NNModel:
 
         return
 
-    def feed_data(self, X, normalize=False, shuffle=False):
-        return
+    def feed_data(self, X, Y, normalize=False, mean=None, stdev=None, shuffle=False):
+        """feed data
+
+        Feed data of train/dev/test set to the model, let Layers[0].A = X
+
+        Arguments:
+            X -- Examples, should be in shape (Layers[0].n, m)
+            Y -- Labels, should be in shape (Layers[L].n, m)
+
+        Keyword Arguments:
+            normalize -- Normalize X if True (default: {False})
+            mean, stdev -- Mean and standard deviation used to normalize X if not None (default: {None, None})
+            shuffle -- Shuffle dataset if True (default: {False})
+
+        Returns:
+            mu, sigma -- Mean and standard deviation of X
         """
+        # TODO: 20171228 23:34
+        return mu, sigma
