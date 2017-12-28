@@ -15,6 +15,12 @@ import numpy as np
 # Dataset Utilities #
 # ***************** #
 
+def one_hot_encoding(Y):
+    return Y
+
+def one_hot_decoding(Y):
+    return Y
+
 def normalize(X, mean=None, stdev=None):
     """normalize the dataset
     
@@ -137,8 +143,8 @@ def sigmoid(z):
     assert(z is not None)
     return 1.0 / (1 + np.exp(-z))
 
-def identity(z):
-    """identity
+def linear(z):
+    """linear, just identity
 
     The activation function of output layer in linear regression N.N. to solve continuous value prediction problems.
 
@@ -151,7 +157,7 @@ def identity(z):
     assert(z is not None)
     return z
 
-def linear(z, lbound=-np.Inf, ubound=np.Inf):
+def bounded_linear(z, lbound=-np.Inf, ubound=np.Inf):
     """Bounded linear function
 
     a = z if lbound < z < ubound;
@@ -168,7 +174,8 @@ def linear(z, lbound=-np.Inf, ubound=np.Inf):
         ubound {number} -- upper bound (default: {infinite})
 
     Returns:
-        np.ndarray -- a, da = a'
+        a -- linear(z)
+        da -- derivative of linear(z) at point 'a'
     """
     a = np.minimum(np.maximum(z, lbound), ubound) + 0.0
     da = ((z <= ubound) & (z >= lbound)) + 0.0
@@ -183,7 +190,8 @@ def relu(z):
         z -- input value
 
     Returns:
-        ( relu(z), derivatives at (z) )
+        a -- relu(z)
+        da -- derivative of relu(z) at point 'a'
     """
     assert(z is not None)
     return linear(z, lbound=0.0)
@@ -200,7 +208,8 @@ def tanh(z):
         z {np.ndarray} -- input values
 
     Returns:
-        np.ndarray -- a, da = a'
+        a -- tanh(z)
+        da -- derivative of tanh(z) at point 'a'
     """
     assert(z is not None)
     a = np.tanh(z)
@@ -221,7 +230,8 @@ def leaky_relu(z, slope=0.01):
         slope {number} -- slope when z < 0.0, between 0,0 and 1.0 (default: {0.01})
 
     Returns:
-        np.ndarray -- a, da = a'
+        a -- leaky_relu(z)
+        da -- derivative of leaky_relu(z) at point 'a'
     """
     assert(z is not None)
     a = np.maximum(z, slope * z) + 0.0
