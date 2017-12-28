@@ -15,8 +15,8 @@ import numpy as np
 # Dataset Utilities #
 # ***************** #
 
-def normalize(X, mean = None, stdev = None):
-    """
+def normalize(X, mean=None, stdev=None):
+    """normalize the dataset
     
     Normalize features
     
@@ -33,38 +33,17 @@ def normalize(X, mean = None, stdev = None):
     if mean is not None:
         mu = mean
     else:
-        mu = np.mean(X, axis = 1, keepdims = True)
-    X = X - mu
+        mu = np.mean(X, axis=1, keepdims=True)
 
     if stdev is not None:
         sigma = stdev
     else:
-        sigma = np.std(X, axis = 1, keepdims = True)
+        sigma = np.std(X, axis=1, keepdims=True)
 
-    X = X / sigma
+    return (X - mu) / sigma, mu, sigma
 
-    return X, mu, sigma
-
-def softmax(X):
-    """
-    
-    Softmax features
-    X[i,j] := exp(X[i,j]) / sum_k=1..m(exp(X[i,k]))
-    
-    Arguments:
-        X {np.ndarray} -- dataset
-    
-    Returns:
-        np.ndarray -- softmaximized dataset
-    """
-    X_exp = np.exp(X)
-    X_sum = np.sum(X_exp, axis = 1, keepdims = True)
-    X = X_exp / X_sum
-
-    return X
-
-def shuffle(X, Y = None):
-    """
+def shuffle(X, Y=None):
+    """shuffle the dataset
     
     Shuffle examples in dataset
     
@@ -82,7 +61,8 @@ def shuffle(X, Y = None):
         Y_shuffled = Y
     return X_shuffled, Y_shuffled
 
-def raise_ord(X, ord = 2):
+def raise_ord(X, ord=2):
+    """raise order of the dataset"""
     n = X.shape[0]
     items = []
     nums = []
@@ -112,23 +92,153 @@ def raise_ord(X, ord = 2):
     return np.array(nums)
 
 def polynomial(X, ord=2):
+    """make the dataset to high order polynomial"""
     _X = X.copy()
-    for d in range(2, ord+1):
+    for d in range(2, ord + 1):
         _X = np.vstack((_X, raise_ord(X, d)))
 
     return _X
+
+# ******************** #
+# Activation functions #
+# ******************** #
+
+def softmax(X):
+    """softmax
+    
+    The activation function of output layer in softmax regression N.N. to solve multiple classification problems.
+
+    exp(X) / sum(exp(X))
+    
+    Arguments:
+        X -- dataset
+    
+    Returns:
+        softmax of X
+    """
+    assert(X is not None)
+    T = np.exp(X)
+    S = np.sum(T, axis = 0, keepdims = True)
+    return T / S
+
+def sigmoid(z):
+    """sigmoid
+
+    The activation function of output layer in logistic regression N.N. to solve classification problems.
+
+    a = 1 / (1 + exp(-z))
+
+    Arguments:
+        z -- data or dataset
+
+    Returns:
+        sigmoid of z
+    """
+    assert(z is not None)
+    return 1.0 / (1 + np.exp(-z))
+
+def identity(z):
+    """identity
+
+    The activation function of output layer in linear regression N.N. to solve continuous value prediction problems.
+
+    Arguments:
+        z -- data or dataset
+
+    Returns:
+        identity to z
+    """
+    assert(z is not None)
+    return z
+
+def linear(z, lbound=-np.Inf, ubound=np.Inf):
+    """Bounded linear function
+
+    a = z if lbound < z < ubound;
+      = lbound if z <= lbound;
+      = ubound if z >= ubound
+    a' = 1 if lbound <= z <= ubound;
+       = 0 otherwise
+
+    Arguments:
+        z {np.ndarray} -- input values
+
+    Keyword Arguments:
+        lbound {number} -- lower bound (default: {-infinite})
+        ubound {number} -- upper bound (default: {infinite})
+
+    Returns:
+        np.ndarray -- a, da = a'
+    """
+    a = np.minimum(np.maximum(z, lbound), ubound) + 0.0
+    da = ((z <= ubound) & (z >= lbound)) + 0.0
+    return a, da
+
+def relu(z):
+    """ReLU
+
+    The most commonly used activation function for hidden units in N.N. to generate positive linear transform for values.
+
+    Arguments:
+        z -- input value
+
+    Returns:
+        ( relu(z), derivatives at (z) )
+    """
+    assert(z is not None)
+    return linear(z, lbound=0.0)
+
+def tanh(z):
+    """tanh
+
+    Commonly used activation function for hidden units in N.N. to generate nonlinear transfrom for values.
+
+    a = tanh(z)
+    a' = 1 - a ^ 2
+
+    Arguments:
+        z {np.ndarray} -- input values
+
+    Returns:
+        np.ndarray -- a, da = a'
+    """
+    assert(z is not None)
+    a = np.tanh(z)
+    da = 1.0 - a ** 2
+    return a, da
+
+def leaky_relu(z, slope=0.01):
+    """leaky ReLU
+
+    a = max(slope * z, z)
+    a' = 1 if z >= 0.0
+       = slope if z < 0.0
+
+    Arguments:
+        z {np.ndarray} -- input values
+
+    Keyword Arguments:
+        slope {number} -- slope when z < 0.0, between 0,0 and 1.0 (default: {0.01})
+
+    Returns:
+        np.ndarray -- a, da = a'
+    """
+    assert(z is not None)
+    a = np.maximum(z, slope * z) + 0.0
+    da = (z >= 0) + (z < 0) * slope
+    return a, da
 
 # ****************** #
 # Dataset generators #
 # ****************** #
 
-def round_ds(dims = 2, num = 100, scale = 20.0, rad = 6.0, blur = 1.0, alien = 0.02):
+def round_ds(dims=2, num=100, scale=20.0, rad=6.0, blur=1.0, alien=0.02):
     X = np.random.rand(dims, num) * scale
     N = np.linalg.norm(X - scale / 2, ord = 2, axis = 0, keepdims = True)
     Y = ((N < rad - blur) | ((N >= rad - blur) & (N <= rad + blur) & (np.random.rand(N.shape[0], N.shape[1]) < 0.5))) ^ (np.random.rand(N.shape[0], N.shape[1]) < alien)
     return X, Y + 0
 
-def roundn_ds(dims = 2, num = 100, mu = 0.0, stdev = 1.0, rad = 1.0, blur = 0.2, alien = 0.02):
+def roundn_ds(dims=2, num=100, mu=0.0, stdev=1.0, rad=1.0, blur=0.2, alien=0.02):
     X = np.random.normal(mu, stdev, (dims, num))
     N = np.linalg.norm(X - mu, ord = 2, axis = 0, keepdims = True)
     Y = ((N < rad - blur) | ((N >= rad - blur) & (N <= rad + blur) & (np.random.rand(N.shape[0], N.shape[1]) < 0.5))) ^ (np.random.rand(N.shape[0], N.shape[1]) < alien)
