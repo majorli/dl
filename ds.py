@@ -16,10 +16,36 @@ import numpy as np
 # ***************** #
 
 def one_hot_encoding(Y):
-    return Y
+    """one-hot encoding
 
-def one_hot_decoding(Y):
-    return Y
+    E.g. from [0, 1, 2] to [[1, 0, 0],[0, 1, 0],[0, 0, 1]]
+
+    Arguments:
+        Y -- Row vector with positive integer labels
+
+    Returns:
+        Y_oh -- Matrix of one-hot labels
+    """
+    C = np.max(Y) + 1
+    Y_oh = np.zeros((C, Y.shape[1]))
+    for c in range(C):
+        Y_oh[c, :] = Y_oh[c, :] + (Y == c)
+
+    return Y_oh.astype(np.int64)
+
+def one_hot_decoding(Y_oh):
+    """one-hot decoding
+
+    Inverse of one-hot encoding.
+    E.g. from [0, 1, 2] to [[1, 0, 0],[0, 1, 0],[0, 0, 1]]
+
+    Arguments:
+        Y_oh -- Matrix of one-hot labels
+
+    Returns:
+        Row vector with positive integer labels
+    """
+    return np.argmax(Y_oh, axis=0).reshape(1, -1).astype(np.int64)
 
 def normalize(X, mean=None, stdev=None):
     """normalize the dataset

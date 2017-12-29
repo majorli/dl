@@ -61,6 +61,7 @@ class NNLayer:
         return
 
     def forward_propagate(self, inp, keep_prob=None, batch_norm=True):
+        # TODO 2017/12/29 11:28
         return out
 
     def backward_propagate(self, inp, regu_param=None, batch_norm=True):
@@ -115,7 +116,7 @@ class NNModel:
             model_type -- Neural network type, SOFTMAX_REGRESSION, SIGMOID_REGRESSION, LINEAR_REGRESSION (default: {LOGISTIC_REGRESSION})
         """
         self.model_type = model_type        # model type
-        self.layers = [NNLayer(dim_input, act=None)] + hidden_layers     # [Input layer, hidden layer 1, ... , hidden layer L-1, output layer L], len(self.layers) = L + 1
+        self.layers = [NNLayer(dim_input, act=None)] + hidden_layers     # [InpLayer, HidLayer 1, ..., HidLayer L-1, OutLayer L], len(self.layers) = L+1
         if model_type == SOFTMAX_REGRESSION:
             self.layers.append(NNLayer(dim_output, SOFTMAX))
         elif model_type == LINEAR_REGRESSION:
@@ -157,5 +158,32 @@ class NNModel:
         Returns:
             mu, sigma -- Mean and standard deviation of X
         """
-        # TODO: 20171228 23:34
+        assert(X.shape[0] == Y.shape[0])
+
+        mu, sigma = None, None
+        if normalize:
+            self.layers[0].A, mu, sigma = ds.normalize(X, mean, stdev)
+        else:
+            self.layers[0].A = X
+
         return mu, sigma
+
+    def predict(self, X, normalize=False, mean=None, stdev=None):
+        """predict
+
+        Do prediction on given dataset X with some learned parameters.
+        No dropout, No regularization, No Batch Normalization.
+        If training set are normalized before be used to train the model, then all other dataset should be normalized by the mean and stdev of the training set!
+
+        Arguments:
+            X -- Dataset, should be in shape (Layers[0].n, m)
+
+        Keyword Arguments:
+            normalize -- Normalize X if True (default: {False})
+            mean, stdev -- Mean and standard deviation used to normalize X (default: {None, None})
+
+        Returns:
+            Y -- Predictions
+        """
+
+        return Y
