@@ -16,15 +16,19 @@ from . import ds
 RELU = 1
 TANH = 2
 LEAKY_RELU = 3
-BOUNDED_LINEAR = 4
-SOFTMAX = 5
-SIGMOID = 6
-LINEAR = 7
+SOFTMAX = 11
+SIGMOID = 12
+LINEAR = 13
 
 # Weight Initialization Types:
 HE_RELU = 1
 HE_TANH = 2
 HE_OTHERS = 3
+
+# NN layer types
+INPUT_LAYER = 1
+HIDDEN_LAYER = 2
+OUTPUT_LAYER = 3
 
 # NN model types
 SOFTMAX_REGRESSION = 1
@@ -47,8 +51,8 @@ class NNLayer:
             num_units -- Number of units in the layer
 
         Keyword Arguments:
-            act -- Activation type, RELU, TANH, LEAKY_RELU, BOUNDED_LINEAR for hidden layers and SOFTMAX, SIGMOID, LINEAR for output layers, defined by constants (default: {RELU})
-            act_param -- parameter for activation function, only useful for LEAKY_RELU and BOUNDED_LINEAR (default: {None})
+            act -- Activation type, RELU, TANH, LEAKY_RELU for hidden layers and SOFTMAX, SIGMOID, LINEAR for output layers, defined by constants (default: {RELU})
+            act_param -- parameter for activation function, only useful for LEAKY_RELU (default: {None})
         """
         self.n = num_units              # number of units
         self.act = act                  # activation function type
@@ -60,12 +64,136 @@ class NNLayer:
         self.gamma = None               # vector of gamma when BN, dim = 4
         return
 
-    def forward_propagate(self, inp, keep_prob=None, batch_norm=True):
-        # TODO 2017/12/29 11:28
-        return out
+    def layer_type(self):
+        """get layer type
 
-    def backward_propagate(self, inp, regu_param=None, batch_norm=True):
-        return out
+        Layer types are defined by constants INPUT_LAYER, HIDDEN_LAYER and OUTPUT_LAYER.
+        Conventionally, NNModel and its subclasses must set the activation to None for input layer (layer 0), and only choose SOFTMAX, SIGMOID or LINEAR to be the activation for output layer (layer L).
+
+        Returns:
+            t -- layer type
+        """
+        t = HIDDEN_LAYER
+        if self.act is None:
+            t = INPUT_LAYER
+        elif self.act > 10:
+            t = OUTPUT_LAYER
+
+        return t
+
+    def g(self, z):
+        """activation function
+
+        Arguments:
+            z -- input
+
+        Returns:
+            a, dg -- function value and derivative at 'z'
+        """
+        a, dg = None, None
+        if self.act == RELU:
+            a, dg = ds.relu(z)
+        elif self.act == TANH:
+            a, dg = ds.tanh(z)
+        elif self.act == LEAKY_RELU:
+            a, dg = ds.leaky_relu(z, self.act_param)
+        elif self.act == SIGMOID:
+            a = ds.sigmoid(z)
+        elif self.act == SOFTMAX:
+            a = ds.softmax(z)
+        elif self.act == LINEAR:
+            a = ds.linear(z)
+        else:
+            a, dg = ds.bounded_linear(z)
+
+        return a, dg
+
+    def forward_propagation(self, inp, keep_prob=None, batch_norm=True):
+        """forward propagation
+
+        Forward propagation to compute the output A of layer.
+        Dropout is supported if keep_prob is not None, and self.dropout will be set to True. If keep_prob is None, set self.dropout to False.
+        Dropout only allowed in hidden layers. For input layer and output layer, keep_prob will be ignored and self.dropout is always set to False.
+        
+        Gradient descent:
+            Z = np.dot(W, inp) + b; ## Z.shape = (n, m), m = inp.shape[1]
+            A, dG = act(Z);         ## A.shape = dG.shape = (n, m) 
+
+        Gradient descent with Batch Normalization:
+            Z = np.dot(W, inp);                     ## Z.shape = (n, m)
+            mu = np.mean(Z, axis=1, keepdims=True)  ## mu.shape = (n, 1)
+            var = np.var(Z, axis=1, keepdims=True)  ## var.shape = (n, 1)
+            t = 1 / np.sqrt(var + epsilon)          ## t.shape = (n, 1)
+            Z_hat = (Z - mu) * t                    ## Z_hat.shape = (n, m)
+            U = gamma * Z_hat + b                   ## U.shape = (n, m)
+            A, dG = act(U)                          ## A.shape = dG.shape = (n, m)
+            
+        Dropout:
+            D = (np.random.rand(n, m) < keep_prob) + 0
+            A = (A * D) / keep_prob
+
+        Returns:
+            A -- Final output of layer
+        """
+        if self.layer_type() == INPUT_LAYER:
+            return self.A
+
+        assert(inp.shape[0] = self.W.shape[1])
+        
+        epsilon = 1e-6
+        m = inp.shape[1]
+
+        if batch_norm:
+            self.Z = np.dot(self.W, inp)
+            self.mu = np.mean(self.Z, axis=1, keepdims=True)
+            self.var = np.var(self.Z, axis=1, keepdims=True)
+            self.t = 1.0 / np.sqrt(self.var + epsilon)
+            self.Z_hat = (self.Z - self.mu) * self.t
+            self.U = self.gamma * self.Z_hat + self.b
+            self.A, self.dG = self.g(self.U)
+        else:
+            self.Z = np.dot(self.W, inp) + self.b
+            self.A, self.dG = self.g(self.Z)
+
+        self.dropout = self.layer_type() == HIDDEN_LAYER and keep_prob is not None and keep_prob > 0 and keep_prob < 1
+        if self.dropout:
+            self.D = np.random.rand(self.n, m) < keep_prob
+            self.A = (self.A * self.D) / keep_prob
+            self.keep_prob = keep_prob
+
+        return self.A
+
+    def backward_propagation(self, inp, dZ_next, W_next, regu_param=None, batch_norm=True):
+        """backward propagation
+
+        Backward propagation to compute the derivatives of cost w.r.t. the layer's parameters.
+        Dropout is used last forward propagation if self.dropout is True. In this case, keep_prob is stored when forward propagation and here we will use it to rescale dA.
+        
+        Gradient descent:
+            Z = np.dot(W, inp) + b; ## Z.shape = (n, m), m = inp.shape[1]
+            A, dG = act(Z);         ## A.shape = dG.shape = (n, m) 
+
+        Gradient descent with Batch Normalization:
+            Z = np.dot(W, inp);                     ## Z.shape = (n, m)
+            mu = np.mean(Z, axis=1, keepdims=True)  ## mu.shape = (n, 1)
+            var = np.var(Z, axis=1, keepdims=True)  ## var.shape = (n, 1)
+            t = 1 / np.sqrt(var + epsilon)          ## t.shape = (n, 1)
+            Z_hat = (Z - mu) * t                    ## Z_hat.shape = (n, m)
+            U = gamma * Z_hat + b                   ## U.shape = (n, m)
+            A, dG = act(U)                          ## A.shape = dG.shape = (n, m)
+            
+        Dropout:
+            D = (np.random.rand(n, m) < keep_prob) + 0
+            A = (A * D) / keep_prob
+
+        Returns:
+            A -- Final output of layer
+        """
+        if self.layer_type() == INPUT_LAYER:
+            return
+
+        # TODO: 20171229 22:23 first complete the function doc
+        return
 
     def update_parameters(self, batch_norm=True):
         return

@@ -1,13 +1,8 @@
 # Functions for manipulations of dataset
 #
-#  Dataset for machine learning is a matrix composed of a set of feature
-#  vectors of examples.
-#  Conventionally, we denote the number of examples in a dataset as 'm'
-#  and the number of features of example as 'n_x'.
+#  Dataset for machine learning is a matrix composed of a set of feature vectors of examples.
+#  Conventionally, we denote the number of examples in a dataset as 'm' and the number of features of example as 'n_x'.
 #  Therefore, a dataset 'X' is a (n_x * m) matrix.
-#  If the dataset is a labeled dataset used for supervised learning, then
-#  there should be a label vector 'Y' which is a row vector contains 'm'
-#  elements. Y[i] is the real result of example X[:,i]
 
 import numpy as np
 
@@ -200,8 +195,8 @@ def bounded_linear(z, lbound=-np.Inf, ubound=np.Inf):
         ubound {number} -- upper bound (default: {infinite})
 
     Returns:
-        a -- linear(z)
-        da -- derivative of linear(z) at point 'a'
+        a -- bounded_linear(z)
+        da -- derivative of bounded_linear(z) at point 'a'
     """
     a = np.minimum(np.maximum(z, lbound), ubound) + 0.0
     da = ((z <= ubound) & (z >= lbound)) + 0.0
@@ -220,7 +215,9 @@ def relu(z):
         da -- derivative of relu(z) at point 'a'
     """
     assert(z is not None)
-    return linear(z, lbound=0.0)
+    a = np.maximum(z, 0.0) + 0.0
+    da = (z >= 0) + 0.0
+    return a, da
 
 def tanh(z):
     """tanh
