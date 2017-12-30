@@ -116,8 +116,8 @@ class NNLayer:
         Dropout only allowed in hidden layers. For input layer and output layer, keep_prob will be ignored and self.dropout is always set to False.
         
         Gradient descent:
-            Z = np.dot(W, inp) + b; ## Z.shape = (n, m), m = inp.shape[1]
-            A, dG = act(Z);         ## A.shape = dG.shape = (n, m) 
+            Z = np.dot(W, inp) + b;                 ## Z.shape = (n, m), m = inp.shape[1]
+            A, dG = act(Z);                         ## A.shape = dG.shape = (n, m) 
 
         Gradient descent with Batch Normalization:
             Z = np.dot(W, inp);                     ## Z.shape = (n, m)
@@ -131,6 +131,13 @@ class NNLayer:
         Dropout:
             D = (np.random.rand(n, m) < keep_prob) + 0
             A = (A * D) / keep_prob
+
+        Arguments:
+            inp -- Output of the previous layer, A_prev
+
+        Keyword Arguments:
+            keep_prob -- Keep probability for dropout if hidden layer, None for no dropout (default: {None})
+            batch_norm -- Use B.N. algorithm (default: {True})
 
         Returns:
             A -- Final output of layer
@@ -138,24 +145,24 @@ class NNLayer:
         if self.layer_type() == INPUT_LAYER:
             return self.A
 
-        assert(inp.shape[0] = self.W.shape[1])
+        assert(inp.shape[0] == self.W.shape[1])
         
-        epsilon = 1e-6
+        epsilon = 1e-8
         m = inp.shape[1]
 
         if batch_norm:
-            self.Z = np.dot(self.W, inp)
-            self.mu = np.mean(self.Z, axis=1, keepdims=True)
-            self.var = np.var(self.Z, axis=1, keepdims=True)
-            self.t = 1.0 / np.sqrt(self.var + epsilon)
-            self.Z_hat = (self.Z - self.mu) * self.t
-            self.U = self.gamma * self.Z_hat + self.b
-            self.A, self.dG = self.g(self.U)
+            Z = np.dot(self.W, inp)
+            mu = np.mean(Z, axis=1, keepdims=True)
+            var = np.var(Z, axis=1, keepdims=True)
+            self.t = 1.0 / np.sqrt(var + epsilon)
+            self.Z_hat = (Z - mu) * self.t
+            U = self.gamma * self.Z_hat + self.b
+            self.A, self.dG = self.g(U)
         else:
-            self.Z = np.dot(self.W, inp) + self.b
-            self.A, self.dG = self.g(self.Z)
+            Z = np.dot(self.W, inp) + self.b
+            self.A, self.dG = self.g(Z)
 
-        self.dropout = self.layer_type() == HIDDEN_LAYER and keep_prob is not None and keep_prob > 0 and keep_prob < 1
+        self.dropout = (self.layer_type() == HIDDEN_LAYER) and keep_prob is not None and keep_prob > 0 and keep_prob < 1
         if self.dropout:
             self.D = np.random.rand(self.n, m) < keep_prob
             self.A = (self.A * self.D) / keep_prob
@@ -163,39 +170,81 @@ class NNLayer:
 
         return self.A
 
-    def backward_propagation(self, inp, dZ_next, W_next, regu_param=None, batch_norm=True):
+    def backward_propagation(self, inp, A_prev, lambd=None, batch_norm=True):
         """backward propagation
 
         Backward propagation to compute the derivatives of cost w.r.t. the layer's parameters.
         Dropout is used last forward propagation if self.dropout is True. In this case, keep_prob is stored when forward propagation and here we will use it to rescale dA.
         
         Gradient descent:
-            Z = np.dot(W, inp) + b; ## Z.shape = (n, m), m = inp.shape[1]
-            A, dG = act(Z);         ## A.shape = dG.shape = (n, m) 
+            if output layer:                                ## inp is Y for output layer
+                dZ = A - inp
+            else if hidden layer:                           ## inp is dA for hidden layers
+                if dropout:
+                    inp = (inp * D) / keep_prob
+                dZ = inp * dG
+            db = np.mean(dZ, axis=1, keepdims=True)
+            dW = np.dot(dZ, A_prev.T) / m
+            if dropout == False and lambd is not None:
+                dW = dW + lambd / m * W
+            dA_prev = np.dot(W.T, dZ)
 
         Gradient descent with Batch Normalization:
-            Z = np.dot(W, inp);                     ## Z.shape = (n, m)
-            mu = np.mean(Z, axis=1, keepdims=True)  ## mu.shape = (n, 1)
-            var = np.var(Z, axis=1, keepdims=True)  ## var.shape = (n, 1)
-            t = 1 / np.sqrt(var + epsilon)          ## t.shape = (n, 1)
-            Z_hat = (Z - mu) * t                    ## Z_hat.shape = (n, m)
-            U = gamma * Z_hat + b                   ## U.shape = (n, m)
-            A, dG = act(U)                          ## A.shape = dG.shape = (n, m)
-            
-        Dropout:
-            D = (np.random.rand(n, m) < keep_prob) + 0
-            A = (A * D) / keep_prob
+            if output layer:                                ## inp is Y for output layer
+                dU = A - inp
+            else if hidden layer:                           ## inp is dA for hidden layers
+                if dropout:
+                    inp = (inp * D) / keep_prob
+                dU = inp * dG
+            dgamma = np.sum(dU * Z_hat, axis=1, keepdims=True)
+            db = np.sum(dU, axis=1, keepdims=True)
+            dZ = (gamma * t / m) * (m * dU - dgamma * Z_hat -  db)
+            dW = np.dot(dZ, A_prev.T) / m
+            if dropout == False and lambd is not None:
+                dW = dW + lambd / m * W
+            dA_prev = np.dot(W.T, dZ)
+
+        Arguments:
+            inp -- Derivatives dA, computed and sent out by the next layer
+            A_prev -- Output of the previous layer, A_prev
+
+        Keyword Arguments:
+            lambd -- L2 regularization parameter, will be ignored when dropout, None for no L2 regularization (default: {None})
+            batch_norm -- Use B.N. algorithm (default: {True})
 
         Returns:
-            A -- Final output of layer
+            dA_prev -- derivatives of cost function w.r.t. output of previous layer
         """
         if self.layer_type() == INPUT_LAYER:
             return
 
-        # TODO: 20171229 22:23 first complete the function doc
-        return
+        assert(A_prev.shape[0] == self.W.shape[1] and inp.shape == self.A.shape)
+        m = inp.shape[1]
 
-    def update_parameters(self, batch_norm=True):
+        if self.layer_type() == OUTPUT_LAYER:
+            dU = self.A - inp
+        else:
+            if self.dropout:
+                inp = (inp * self.D) / self.keep_prob
+            dU = inp * self.dG
+        if batch_norm:
+            self.dgamma = np.sum(dU * self.Z_hat, axis=1, keepdims=True)
+            self.db = np.sum(dU, axis=1, keepdims=True)
+            dZ = (self.gamma * self.t / m) * (m * dU - self.dgamma * self.Z_hat -  self.db)
+        else:
+            dZ = dU
+            self.db = np.mean(dZ, axis=1, keepdims=True)
+
+        self.dW = np.dot(dZ, A_prev.T) / m
+        if dropout == False and lambd is not None:
+            self.dW = self.dW + lambd / m * self.W
+
+        dA_prev = np.dot(self.W.T, dZ)
+
+        return dA_prev
+
+    def update_parameters(self, learning_rate, adam=True, momentum=0.9, rmsprop=0.999):
+        # TODO: 20171230 23:07
         return
 
     def initialize_parameters(self, prev_layer_size, init_type=None, batch_norm=True):
