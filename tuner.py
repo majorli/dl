@@ -162,7 +162,7 @@ def adam(model, X, Y, learning_rate, momentum_param = 0.9, rmsprop_param = 0.999
         Vdb_corrected.append(np.zeros(b[l].shape))
         Sdb.append(np.zeros(b[l].shape))
         Sdb_corrected.append(np.zeros(b[l].shape))
-        
+
     count = 0
     print("Start", end = "", flush = True)
     for e in range(num_epochs):
@@ -177,8 +177,8 @@ def adam(model, X, Y, learning_rate, momentum_param = 0.9, rmsprop_param = 0.999
             else:
                 J, dW, db = model.learn(regu_type = regu_type, lambd = regu_params, keep_prob = regu_params)
             W, b = model.get_parameters()
+            count = count + 1
             for l in range(1, len(W)):
-                count = count + 1
                 VdW[l] = momentum_param * VdW[l] + (1 - momentum_param) * dW[l]
                 Vdb[l] = momentum_param * Vdb[l] + (1 - momentum_param) * db[l]
                 VdW_corrected[l] = VdW[l] / (1 - momentum_param ** count)

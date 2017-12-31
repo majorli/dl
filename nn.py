@@ -236,16 +236,12 @@ class NNLayer:
             self.db = np.mean(dZ, axis=1, keepdims=True)
 
         self.dW = np.dot(dZ, A_prev.T) / m
-        if dropout == False and lambd is not None:
+        if self.dropout == False and lambd is not None:
             self.dW = self.dW + lambd / m * self.W
 
         dA_prev = np.dot(self.W.T, dZ)
 
         return dA_prev
-
-    def update_parameters(self, learning_rate, adam=True, momentum=0.9, rmsprop=0.999):
-        # TODO: 20171230 23:07
-        return
 
     def initialize_parameters(self, prev_layer_size, init_type=None, batch_norm=True):
         """initialize parameters
@@ -344,6 +340,17 @@ class NNModel:
             self.layers[0].A = X
 
         return mu, sigma
+
+    def forward_propagation(self, X, keep_prob=None, batch_norm=True):
+        L = len(self.layers) - 1
+        # TODO: 20171231 23:41
+        return self.layers[L].A
+
+    def cost(self):
+        return J
+
+    def backward_propagation(self):
+        return
 
     def predict(self, X, normalize=False, mean=None, stdev=None):
         """predict
