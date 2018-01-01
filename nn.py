@@ -275,6 +275,9 @@ class NNLayer:
         else:
             self.W = self.W * ((2 / (self.n + prev_layer_size)) ** 0.5)
 
+        self.moving_mean = 0.0
+        self.moving_var = 0.0
+
         return
 
 class NNModel:
@@ -325,6 +328,8 @@ class NNModel:
         W = [None]
         b = [None]
         gamma = [None]
+        moving_mean = [None]
+        moving_var = [None]
 
         for l in range(1, len(self.layers)):
             n.append(self.layers[l].n)
@@ -332,8 +337,10 @@ class NNModel:
             W.append(self.layers[l].W)
             b.append(self.layers[l].b)
             gamma.append(self.layers[l].gamma)
+            moving_mean.append(self.layers[l].moving_mean)
+            moving_var.append(self.layers[l].moving_var)
 
-        np.savez(fn, n=n, g=g, W=W, b=b, gamma=gamma)
+        np.savez(fn, n=n, g=g, W=W, b=b, gamma=gamma, moving_mean=moving_mean, moving_var=moving_var)
 
         return
 
@@ -344,6 +351,8 @@ class NNModel:
         W = list(npz["W"])
         b = list(npz["b"])
         gamma = list(npz["gamma"])
+        moving_mean = list(npz["moving_mean"])
+        moving_var = list(npz["moving_var"])
 
         L = len(n)
         self.layers = [NNLayer(n[0], act=None)]
@@ -352,6 +361,8 @@ class NNModel:
             layer.W = W[l]
             layer.b = b[l]
             layer.gamma = gamma[l]
+            layer.moving_mean = moving_mean[l]
+            layer.moving_var = moving_var[l]
             self.layers.append(layer)
 
         if g[L-1][0] == SOFTMAX:
