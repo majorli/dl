@@ -60,8 +60,10 @@ class NNLayer:
         self.dropout = False            # used dropout last forward propagation
         self.A = None                   # layer final output
         self.W = None                   # matrix of layer weights, shape = n * n_prev
-        self.b = None                   # vector of bias, also used as vector of beta when BN, dim = n
-        self.gamma = None               # vector of gamma when BN, dim = 4
+        self.b = None                   # vector of bias, also used as vector of beta when B.N., dim = n
+        self.gamma = None               # vector of gamma when B.N., dim = 4
+        self.moving_mean = 0.0          # moving mean of B.N. algorithm
+        self.moving_var = 0.0           # moving variance of B.N. algorithm
         return
 
     def layer_type(self):
@@ -108,7 +110,7 @@ class NNLayer:
 
         return a, dg
 
-    def forward_propagation(self, inp, keep_prob=None, batch_norm=True):
+    def forward_propagation(self, inp, keep_prob=None, batch_norm=True, bn_momentum=0.9):
         """forward propagation
 
         Forward propagation to compute the output A of layer.
@@ -138,6 +140,7 @@ class NNLayer:
         Keyword Arguments:
             keep_prob -- Keep probability for dropout if hidden layer, None for no dropout (default: {None})
             batch_norm -- Use B.N. algorithm (default: {True})
+            bn_momentum -- Momentum used to keep trace of moving means and moving variances in B.N. algorithm (default: {0.9})
 
         Returns:
             A -- Final output of layer
@@ -154,6 +157,8 @@ class NNLayer:
             Z = np.dot(self.W, inp)
             mu = np.mean(Z, axis=1, keepdims=True)
             var = np.var(Z, axis=1, keepdims=True)
+            self.moving_mean = bn_momentum * self.moving_mean + (1 - bn_momentum) * mu
+            self.moving_var = bn_momentum * self.moving_var + (1 - bn_momentum) * var
             self.t = 1.0 / np.sqrt(var + epsilon)
             self.Z_hat = (Z - mu) * self.t
             U = self.gamma * self.Z_hat + self.b
@@ -162,7 +167,7 @@ class NNLayer:
             Z = np.dot(self.W, inp) + self.b
             self.A, self.dG = self.g(Z)
 
-        self.dropout = (self.layer_type() == HIDDEN_LAYER) and keep_prob is not None and keep_prob > 0 and keep_prob < 1
+        self.dropout = (self.layer_type() == HIDDEN_LAYER) and keep_prob is not None
         if self.dropout:
             self.D = np.random.rand(self.n, m) < keep_prob
             self.A = (self.A * self.D) / keep_prob
@@ -358,7 +363,7 @@ class NNModel:
 
         return
 
-    def forward_propagation(self, X, keep_prob=None, batch_norm=True):
+    def forward_propagation(self, X, keep_probs=None, batch_norm=True, bn_momentum=0.9):
         """forward propagation
 
             Do forward propagation to compute the final output under current parameters
@@ -367,7 +372,7 @@ class NNModel:
             X -- Input dataset
 
         Keyword Arguments:
-            keep_prob -- Dropout parameter, keep probability, None if don't use dropout (default: {None})
+            keep_probs -- List of keep probabilities for each layer from 1 to L-1, no dropout if None (default: {None})
             batch_norm -- True if use Batch Normalization (default: {True})
 
         Returns:
@@ -376,7 +381,11 @@ class NNModel:
         L = len(self.layers)
         A = X
         for l in range(1, L):
-            A = self.layers[l].forward_propagation(A, keep_prob=keep_prob, batch_norm=batch_norm)
+            if keep_probs is not None and l < L - 1:
+                keep_prob = keep_probs[l-1]
+            else:
+                keep_prob = None
+            A = self.layers[l].forward_propagation(A, keep_prob=keep_prob, batch_norm=batch_norm, bn_momentum=bn_momentum)
         return A
 
     def cost(self, Y, L2_param=None):
@@ -439,12 +448,11 @@ class NNModel:
 
         return
 
-    def predict(self, X, normalize=False, mean=None, stdev=None):
+    def predict(self, X, normalize=False, mean=None, stdev=None, batch_norm=True):
         """predict
 
-        Do prediction on given dataset X with some learned parameters.
-        No dropout, No regularization, No Batch Normalization.
-        If training set are normalized before be used to train the model, then all other dataset should be normalized by the mean and stdev of the training set!
+        Do prediction on given dataset X with some learned parameters. No dropout, No regularization.
+        If batch normalization is not used and training set are normalized before be used to train the model, then all other dataset should be normalized by the same mean and stdev of the training set!
 
         Arguments:
             X -- Dataset, should be in shape (Layers[0].n, m)
@@ -452,6 +460,7 @@ class NNModel:
         Keyword Arguments:
             normalize -- Normalize X if True (default: {False})
             mean, stdev -- Mean and standard deviation used to normalize X (default: {None, None})
+            batch_norm -- True if use Batch Normalization (default: {True}) 
 
         Returns:
             Y -- Predictions
@@ -459,12 +468,15 @@ class NNModel:
 
         return Y
 
-    def gradient_descent(learning_rate, num_iters=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True):
+    def gradient_descent(self, X, Y, learning_rate, num_iters=10000, cost_step=100, keep_probs=None, L2_param=None):
         """gradient descent
 
-        Gradient descent optimizer for neural network model.
+        Batch gradient descent optimizer for neural network model.
+        Batch Normalization is not supported by Batch Gradient Descent Optimizer.
 
         Arguments:
+            X -- Training set
+            Y -- Labels of training set
             learning_rate -- Learning rate.
 
         Keyword Arguments:
@@ -472,10 +484,36 @@ class NNModel:
             cost_step -- Step to compute cost function, 0 to never compute cost (default: {100})
             keep_probs -- List of keep probabilities for each layer from 1 to L-1, no dropout if None (default: {None})
             L2_param -- L2 regularization parameter, no L2 regularization if None or zero (default: {None})
-            batch_norm -- True to use batch normalization algorithm (defalut: {False})
 
         Returns:
             costs -- List of costs corresponding to cost_step
         """
-        # TODO: 20180101 11:25
+        costs = []
+        print("Start", end="", flush=True)
+        print("number of iterations:" + str(num_iters))
+        for i in range(num_iters):
+            self.forward_propagation(X, keep_probs=keep_probs, batch_norm=False)
+            if (cost_step > 0 and i % cost_step == 0) or i == num_iters - 1:
+                if keep_probs is None:
+                    costs.append(self.cost(Y, L2_param))
+                else:
+                    costs.append(self.cost(Y))
+            self.backward_propagation(X, Y, L2_param=L2_param, batch_norm=False)
+
+            for l in range(1, len(self.layers)):
+                self.layers[l].W = self.layers[l].W - learning_rate * self.layers[l].dW
+                self.layers[l].b = self.layers[l].b - learning_rate * self.layers[l].db
+
+            if i % 100 == 0:
+                print(".", end="", flush=True)
+
+        print("Finished!")
+
+        return costs
+
+    def mini_batch_gradient_descent(self, X, Y, learning_rate, mini_batch_size=64, num_epochs=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9):
+        return costs
+
+    def adam(self, X, Y, learning_rate, momentum=0.9, rmsprop=0.999, mini_batch_size=64, num_epochs=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9):
+        epsilon = 1e-8
         return costs
