@@ -170,7 +170,7 @@ class NNLayer:
 
         return self.A
 
-    def backward_propagation(self, inp, A_prev, lambd=None, batch_norm=True):
+    def backward_propagation(self, inp, A_prev, L2_param=None, batch_norm=True):
         """backward propagation
 
         Backward propagation to compute the derivatives of cost w.r.t. the layer's parameters.
@@ -185,8 +185,8 @@ class NNLayer:
                 dZ = inp * dG
             db = np.mean(dZ, axis=1, keepdims=True)
             dW = np.dot(dZ, A_prev.T) / m
-            if dropout == False and lambd is not None:
-                dW = dW + lambd / m * W
+            if dropout == False and L2_param is not None:
+                dW = dW + L2_param / m * W
             dA_prev = np.dot(W.T, dZ)
 
         Gradient descent with Batch Normalization:
@@ -200,8 +200,8 @@ class NNLayer:
             db = np.sum(dU, axis=1, keepdims=True)
             dZ = (gamma * t / m) * (m * dU - dgamma * Z_hat -  db)
             dW = np.dot(dZ, A_prev.T) / m
-            if dropout == False and lambd is not None:
-                dW = dW + lambd / m * W
+            if dropout == False and L2_param is not None:
+                dW = dW + L2_param / m * W
             dA_prev = np.dot(W.T, dZ)
 
         Arguments:
@@ -209,7 +209,7 @@ class NNLayer:
             A_prev -- Output of the previous layer, A_prev
 
         Keyword Arguments:
-            lambd -- L2 regularization parameter, will be ignored when dropout, None for no L2 regularization (default: {None})
+            L2_param -- L2 regularization parameter, will be ignored when dropout, None for no L2 regularization (default: {None})
             batch_norm -- Use B.N. algorithm (default: {True})
 
         Returns:
@@ -236,8 +236,8 @@ class NNLayer:
             self.db = np.mean(dZ, axis=1, keepdims=True)
 
         self.dW = np.dot(dZ, A_prev.T) / m
-        if self.dropout == False and lambd is not None:
-            self.dW = self.dW + lambd / m * self.W
+        if self.dropout == False and L2_param is not None:
+            self.dW = self.dW + L2_param / m * self.W
 
         dA_prev = np.dot(self.W.T, dZ)
 
@@ -314,42 +314,129 @@ class NNModel:
 
         return
 
-    def feed_data(self, X, Y, normalize=False, mean=None, stdev=None, shuffle=False):
-        """feed data
+    def save(self, fn):
+        n = [self.layers[0].n]
+        g = [None]
+        W = [None]
+        b = [None]
+        gamma = [None]
 
-        Feed data of train/dev/test set to the model, let Layers[0].A = X
+        for l in range(1, len(self.layers)):
+            n.append(self.layers[l].n)
+            g.append([self.layers[l].act, self.layers[l].act_param])
+            W.append(self.layers[l].W)
+            b.append(self.layers[l].b)
+            gamma.append(self.layers[l].gamma)
 
-        Arguments:
-            X -- Examples, should be in shape (Layers[0].n, m)
-            Y -- Labels, should be in shape (Layers[L].n, m)
+        np.savez(fn, n=n, g=g, W=W, b=b, gamma=gamma)
 
-        Keyword Arguments:
-            normalize -- Normalize X if True (default: {False})
-            mean, stdev -- Mean and standard deviation used to normalize X if not None (default: {None, None})
-            shuffle -- Shuffle dataset if True (default: {False})
+        return
 
-        Returns:
-            mu, sigma -- Mean and standard deviation of X
-        """
-        assert(X.shape[0] == Y.shape[0])
+    def load(self, fn):
+        npz = np.load(fn + ".npz")
+        n = list(npz["n"])
+        g = list(npz["g"])
+        W = list(npz["W"])
+        b = list(npz["b"])
+        gamma = list(npz["gamma"])
 
-        mu, sigma = None, None
-        if normalize:
-            self.layers[0].A, mu, sigma = ds.normalize(X, mean, stdev)
-        else:
-            self.layers[0].A = X
+        L = len(n)
+        self.layers = [NNLayer(n[0], act=None)]
+        for l in range(1, L):
+            layer = NNLayer(n[l], act=g[l][0], act_param=g[l][1])
+            layer.W = W[l]
+            layer.b = b[l]
+            layer.gamma = gamma[l]
+            self.layers.append(layer)
 
-        return mu, sigma
+        if g[L-1][0] == SOFTMAX:
+            self.model_type = SOFTMAX_REGRESSION
+        elif g[L-1][0] == LINEAR:
+            self.model_type = LINEAR_REGRESSION
+        elif g[L-1][0] == SIGMOID:
+            self.model_type = LOGISTIC_REGRESSION
+
+        return
 
     def forward_propagation(self, X, keep_prob=None, batch_norm=True):
-        L = len(self.layers) - 1
-        # TODO: 20171231 23:41
-        return self.layers[L].A
+        """forward propagation
 
-    def cost(self):
+            Do forward propagation to compute the final output under current parameters
+
+        Arguments:
+            X -- Input dataset
+
+        Keyword Arguments:
+            keep_prob -- Dropout parameter, keep probability, None if don't use dropout (default: {None})
+            batch_norm -- True if use Batch Normalization (default: {True})
+
+        Returns:
+            Y_hat -- Y_hat == A[L], the final output
+        """
+        L = len(self.layers)
+        A = X
+        for l in range(1, L):
+            A = self.layers[l].forward_propagation(A, keep_prob=keep_prob, batch_norm=batch_norm)
+        return A
+
+    def cost(self, Y, L2_param=None):
+        """cost function
+
+        Compute the overall cost function.
+
+        Arguments:
+            Y -- Labels
+
+        Keyword Arguments:
+            L2_param -- L2 regularization parameter, no L2 regularization if None or 0 (default: {None})
+
+        Returns:
+            J -- Overall cost
+        """
+        L = len(self.layers)
+        A = self.layers[L-1].A
+        assert(A is not None and Y is not None and A.shape == Y.shape)
+
+        J = 0.0
+        m = A.shape[1]
+        if self.model_type == SOFTMAX_REGRESSION:
+            J = - np.sum(Y * np.log(A)) / m
+        elif self.model_type == LINEAR_REGRESSION:
+            J = np.sum(np.square(A - Y)) / (2 * m)
+        elif self.model_type == LOGISTIC_REGRESSION:
+            J = - np.sum(Y * np.log(A) + (1 - Y) * np.log(1 - A)) / m
+
+        if L2_param is not None and L2_param > 0:
+            s = 0.0
+            for l in range(1, L):
+                s = s + np.sum(np.square(self.layers[l].W))
+            s = s * L2_param / (2 * m)
+            J = J + s
+
         return J
 
-    def backward_propagation(self):
+    def backward_propagation(self, X, Y, L2_param=None, batch_norm=True):
+        """backprop
+
+        Do backward propagation to compute derivatives of cost function w.r.t. parameters in each layer.
+
+        Arguments:
+            Y -- Labels
+
+        Keyword Arguments:
+            L2_param -- L2 regularization parameter, no L2 regularization if None or 0 (default: {None})
+            batch_norm -- True if use Batch Normalization (default: {True})
+        """
+        L = len(self.layers)
+        A = self.layers[L-1].A
+        assert(A is not None and Y is not None and A.shape == Y.shape)
+
+        dA = Y
+        for l in range(L-1, 1, -1):
+            dA = self.layers[l].backward_propagation(dA, self.layers[l-1].A, L2_param=L2_param, batch_norm=batch_norm)
+        
+        self.layers[1].backward_propagation(dA, X, L2_param=L2_param, batch_norm=batch_norm)
+
         return
 
     def predict(self, X, normalize=False, mean=None, stdev=None):
@@ -371,3 +458,24 @@ class NNModel:
         """
 
         return Y
+
+    def gradient_descent(learning_rate, num_iters=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True):
+        """gradient descent
+
+        Gradient descent optimizer for neural network model.
+
+        Arguments:
+            learning_rate -- Learning rate.
+
+        Keyword Arguments:
+            num_iters -- Number of iterations (default: {10000})
+            cost_step -- Step to compute cost function, 0 to never compute cost (default: {100})
+            keep_probs -- List of keep probabilities for each layer from 1 to L-1, no dropout if None (default: {None})
+            L2_param -- L2 regularization parameter, no L2 regularization if None or zero (default: {None})
+            batch_norm -- True to use batch normalization algorithm (defalut: {False})
+
+        Returns:
+            costs -- List of costs corresponding to cost_step
+        """
+        # TODO: 20180101 11:25
+        return costs
