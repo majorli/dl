@@ -5,6 +5,7 @@
 #   NNModel -- neural network model
 
 import numpy as np
+import math
 
 from . import ds
 
@@ -484,6 +485,7 @@ class NNModel:
 
         Batch gradient descent optimizer for neural network model.
         Batch Normalization is not supported by Batch Gradient Descent Optimizer.
+        To gain better perfomance, it's recommended to normalize the training data and use the mean and variance of training data to normalize any other dataset, including dev set, test set and application data.
 
         Arguments:
             X -- Training set
@@ -506,9 +508,9 @@ class NNModel:
             self.forward_propagation(X, keep_probs=keep_probs, batch_norm=False)
             if (cost_step > 0 and i % cost_step == 0) or i == num_iters - 1:
                 if keep_probs is None:
-                    costs.append(self.cost(Y, L2_param))
+                    costs.append((i, self.cost(Y, L2_param)))
                 else:
-                    costs.append(self.cost(Y))
+                    costs.append((i, self.cost(Y)))
             self.backward_propagation(X, Y, L2_param=L2_param, batch_norm=False)
 
             for l in range(1, len(self.layers)):
@@ -523,8 +525,75 @@ class NNModel:
         return costs
 
     def mini_batch_gradient_descent(self, X, Y, learning_rate, mini_batch_size=64, num_epochs=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9):
+        """mini_batch gradient descent
+
+        Mini_Batch gradient descent optimizer for neural network model.
+        Mini_Batch gradient descent can use with Batch Normalization algorithm.
+        It's recommended that training set should be shuffled before using.
+
+        Arguments:
+            X -- Training set
+            Y -- Labels of training set
+            learning_rate -- Learning rate.
+
+        Keyword Arguments:
+            mini_batch_size -- Mini_Batch size, usually 64, 128, 256, 512 (default: {64})
+            num_epochs -- Number of epochs (default: {10000})
+            cost_step -- Step to compute cost function, 0 to never compute cost (default: {100})
+            keep_probs -- List of keep probabilities for each layer from 1 to L-1, no dropout if None (default: {None})
+            L2_param -- L2 regularization parameter, no L2 regularization if None or zero (default: {None})
+            batch_norm -- True if use Batch Normalization (default: {True})
+            bn_momentum -- Momentum for Batch Normalization (default: {0.9})
+
+        Returns:
+            costs -- List of costs corresponding to cost_step
+        """
+        costs = []
+        m = X.shape[1]
+        num_batches = math.ceil(m / mini_batch_size)
+
+        print("Start", end = "", flush = True)
+        for e in range(num_epochs):
+            for t in range(num_batches):
+                if t == num_batches - 1:
+                    MB_X = X[:, mini_batch_size * t : ]
+                    MB_Y = Y[:, mini_batch_size * t : ]
+                else:
+                    MB_X = X[:, mini_batch_size * t : (mini_batch_size) * (t + 1)]
+                    MB_Y = Y[:, mini_batch_size * t : (mini_batch_size) * (t + 1)]
+                self.forward_propagation(MB_X, keep_probs=keep_probs, batch_norm=batch_norm, bn_momentum=bn_momentum)
+
+                if t == num_batches - 1 and ((cost_step > 0 and e % cost_step == 0) or e == num_epochs - 1):
+                    if keep_probs is None:
+                        costs.append((e, self.cost(MB_Y, L2_param)))
+                    else:
+                        costs.append((e, self.cost(MB_Y)))
+
+                self.backward_propagation(MB_X, MB_Y, L2_param=L2_param, batch_norm=batch_norm)
+
+                for l in range(1, len(self.layers)):
+                    self.layers[l].W = self.layers[l].W - learning_rate * self.layers[l].dW
+                    self.layers[l].b = self.layers[l].b - learning_rate * self.layers[l].db
+
+            if (e % 100 == 0):
+                print(".", end = "", flush = True)
+
+        print("Finished!")
+
         return costs
 
     def adam(self, X, Y, learning_rate, momentum=0.9, rmsprop=0.999, mini_batch_size=64, num_epochs=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9):
+        """Adam optimizer
+
+        Adam optimizer combines momentum and RMSProp gradient descent.
+
+        Parameters:
+            X --
+
+        Keyword Parameters:
+
+        Returns:
+
+        """
         epsilon = 1e-8
         return costs
