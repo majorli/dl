@@ -189,8 +189,8 @@ def adam(model, X, Y, learning_rate, momentum_param = 0.9, rmsprop_param = 0.999
                 SdW_corrected[l] = SdW[l] / (1 - rmsprop_param ** count)
                 Sdb_corrected[l] = Sdb[l] / (1 - rmsprop_param ** count)
 
-                W[l] = W[l] - learning_rate * VdW[l] / (np.sqrt(SdW_corrected[l]) + epsilon)
-                b[l] = b[l] - learning_rate * Vdb[l] / (np.sqrt(Sdb_corrected[l]) + epsilon)
+                W[l] = W[l] - learning_rate * VdW_corrected[l] / (np.sqrt(SdW_corrected[l]) + epsilon)
+                b[l] = b[l] - learning_rate * Vdb_corrected[l] / (np.sqrt(Sdb_corrected[l]) + epsilon)
 
         if (e % 100 == 0):
             print(".", end = "", flush = True)
