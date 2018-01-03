@@ -265,14 +265,157 @@ def leaky_relu(z, slope=0.01):
 # Dataset generators #
 # ****************** #
 
-def round_ds(dims=2, num=100, scale=20.0, rad=6.0, blur=1.0, alien=0.02):
-    X = np.random.rand(dims, num) * scale
-    N = np.linalg.norm(X - scale / 2, ord = 2, axis = 0, keepdims = True)
-    Y = ((N < rad - blur) | ((N >= rad - blur) & (N <= rad + blur) & (np.random.rand(N.shape[0], N.shape[1]) < 0.5))) ^ (np.random.rand(N.shape[0], N.shape[1]) < alien)
+def rect_ds(num, mu=[0.0, 0.0], stdev=[1.0, 1.0], length=[1.0, 1.0], alien=0.005):
+    assert(len(mu) == len(stdev))
+    assert(len(mu) == len(length))
+    d = len(mu)
+    m = np.array(mu).reshape(d, 1)
+    s = np.array(stdev).reshape(d, 1)
+    r = np.array(length).reshape(d, 1)
+    X = np.random.normal(m, s, (d, num))
+    N = np.abs(X - m) < r
+    Y = np.all(N, axis=0, keepdims=True) ^ (np.random.rand(1, N.shape[1]) < alien)
     return X, Y + 0
 
-def roundn_ds(dims=2, num=100, mu=0.0, stdev=1.0, rad=1.0, blur=0.2, alien=0.02):
-    X = np.random.normal(mu, stdev, (dims, num))
-    N = np.linalg.norm(X - mu, ord = 2, axis = 0, keepdims = True)
-    Y = ((N < rad - blur) | ((N >= rad - blur) & (N <= rad + blur) & (np.random.rand(N.shape[0], N.shape[1]) < 0.5))) ^ (np.random.rand(N.shape[0], N.shape[1]) < alien)
+def round_ds(num, mu=[0.0, 0.0], stdev=[1.0, 1.0], radius=[1.0, 1.0], alien=0.005):
+    assert(len(mu) == len(stdev))
+    assert(len(mu) == len(radius))
+    d = len(mu)
+    m = np.array(mu).reshape(d, 1)
+    s = np.array(stdev).reshape(d, 1)
+    r = np.array(radius).reshape(d, 1)
+    X = np.random.normal(m, s, (d, num))
+    N = np.linalg.norm((X - m) / r, axis=0, keepdims=True) < 1.0
+    Y = N ^ (np.random.rand(1, N.shape[1]) < alien)
     return X, Y + 0
+
+def circle_ds(num, mu=[0.0, 0.0], stdev=[1.0, 1.0], radius=[1.0, 1.0], thickness=0.2, alien=0.005):
+    assert(len(mu) == len(stdev))
+    assert(len(mu) == len(radius))
+    d = len(mu)
+    m = np.array(mu).reshape(d, 1)
+    s = np.array(stdev).reshape(d, 1)
+    r = np.array(radius).reshape(d, 1)
+    X = np.random.normal(m, s, (d, num))
+    N = np.linalg.norm((X - m) / r, axis=0, keepdims=True)
+    Y = ((N < 1.0 + thickness) & (N > 1.0 - thickness)) ^ (np.random.rand(1, N.shape[1]) < alien)
+    return X, Y + 0
+
+def multi_class_ds(num, centroids=[[0.0, 0.0], [2.0, 2.0]], radius=[[0.5, 0.5], [0.5, 0.5]]):
+    c = np.array(centroids)
+    r = np.array(radius)
+    assert(c.shape == r.shape)
+    K = c.shape[0]
+    d = c.shape[1]
+    assert(len(num) == K)
+    X = np.zeros((d, 0))
+    Y = np.zeros((K, 0))
+    for k in range(K):
+        Xk, _ = round_ds(num[k], c[k, :], r[k, :] * 0.75, r[k, :])
+        X = np.hstack((X, Xk))
+        Yk = np.zeros((K, num[k]))
+        Yk[k, :] = np.ones((1, num[k]))
+        Y = np.hstack((Y, Yk))
+    return X, Y.astype(int)
+
+# ****************** #
+# Evaluating metrics #
+# ****************** #
+
+def logistic_metrics(pred, labels):
+    """Metrics for logistic regression
+
+    Accuracy, Precision, Recall and F1 score.
+
+    Arguments:
+        pred -- Predictions output by model
+        lables -- Labels corresponding to predictions
+
+    Returns:
+        metrics -- Dictionary of evaluating metrics
+    """
+    assert(pred.shape == labels.shape)
+
+    m = pred.shape[1]
+    metrics = {}
+
+    tp = np.sum((labels == 1) & (pred == 1))
+    tn = np.sum((labels == 0) & (pred == 0))
+    metrics["accuracy"] = (tp + tn) / m
+    metrics["precision"] = tp / np.sum(pred)
+    metrics["recall"] = tp / np.sum(labels)
+    if tp == 0:
+        metrics["F1"] = np.nan
+    else:
+        metrics["F1"] = 2 * metrics["precision"] * metrics["recall"] / (metrics["precision"] + metrics["recall"])
+
+    return metrics
+
+def linear_metrics(pred, labels):
+    """Metrics for linear regression
+
+    Average, Max and Standard deviation of absolute error, relative error and distance between vectors in pred and labels.
+
+    Arguments:
+        pred -- Predictions output by model
+        lables -- Labels corresponding to predictions
+
+    Returns:
+        metrics -- Dictionary of evaluating metrics
+    """
+    assert(pred.shape == labels.shape)
+
+    d = pred.shape[0]
+    m = pred.shape[1]
+    metrics = {}
+
+    e = np.abs(pred - labels)
+    n = np.linalg.norm(e, axis=0, keepdims=True)
+    a = e / labels
+    metrics["absolute_errors"] = {
+            "maximum" : np.max(e, axis=1, keepdims=True),
+            "average" : np.mean(e, axis=1, keepdims=True),
+            "stdev" : np.std(e, axis=1, keepdims=True)
+            }
+    metrics["relative_errors"] = {
+        "maximum" : np.max(a, axis=1, keepdims=True),
+        "average" : np.mean(a, axis=1, keepdims=True),
+        "stdev" : np.std(a, axis=1, keepdims=True)
+        }
+    metrics["distance"] = {
+        "maximum" : np.max(n),
+        "average" : np.mean(n),
+        "stdev" : np.std(n)
+        }
+
+    return metrics
+
+def softmax_metrics(pred, labels):
+    """Metrics for softmax regression
+
+    Logistic regression metrics for each class.
+    Accuracy of overall classes
+
+    Arguments:
+        pred -- Predictions output by model in one-hot encoding form
+        lables -- Labels corresponding to predictions in one-hot encoding form
+
+    Returns:
+        metrics -- Dictionary of evaluating metrics
+    """
+    assert(pred.shape == labels.shape)
+    assert(pred.shape[0] > 1)
+
+    K = pred.shape[0]
+    m = pred.shape[1]
+    metrics = {}
+
+    for k in range(K):
+        metrics["class_" + str(k) + "_metrics"] = logistic_metrics(pred[k, :].reshape(1, m), labels[k, :].reshape(1, m))
+
+    p = one_hot_decoding(pred)
+    l = one_hot_decoding(labels)
+    metrics["accuracy"] = np.sum(p == l) / m
+
+    return metrics
+
