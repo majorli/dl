@@ -356,15 +356,15 @@ class NNModel:
             batch_norm -- True to initialize parameters for batch normalization algorithm (default: {True})
         """
         # 1. get rid of current output layer
+        d = self.layers[-1].n
         del self.layers[-1]
-        first_new_layer = (self.layers)
+        first_new_layer = len(self.layers)
 
         # 2. append extra hidden layers if provided
         if extra_hidden_layers is not None:
             self.layers = self.layers + extra_hidden_layers
 
         # 3. add output layer of same model type
-        d = self.layers[-1].n
         if self.model_type == SOFTMAX_REGRESSION:
             self.layers.append(NNLayer(d, SOFTMAX))
         elif self.model_type == LINEAR_REGRESSION:
