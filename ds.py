@@ -339,15 +339,12 @@ def logistic_metrics(pred, labels):
     m = pred.shape[1]
     metrics = {}
 
-    tp = np.sum((labels == 1) & (pred == 1))
-    tn = np.sum((labels == 0) & (pred == 0))
+    tp = np.sum((labels == 1) & (pred == 1), axis=1, keepdims=True)
+    tn = np.sum((labels == 0) & (pred == 0), axis=1, keepdims=True)
     metrics["accuracy"] = (tp + tn) / m
-    metrics["precision"] = tp / np.sum(pred)
-    metrics["recall"] = tp / np.sum(labels)
-    if tp == 0:
-        metrics["F1"] = np.nan
-    else:
-        metrics["F1"] = 2 * metrics["precision"] * metrics["recall"] / (metrics["precision"] + metrics["recall"])
+    metrics["precision"] = tp / np.sum(pred, axis=1, keepdims=True)
+    metrics["recall"] = tp / np.sum(labels, axis=1, keepdims=True)
+    metrics["F1"] = 2 * metrics["precision"] * metrics["recall"] / (metrics["precision"] + metrics["recall"] + 1e-8)
 
     return metrics
 
@@ -406,12 +403,13 @@ def softmax_metrics(pred, labels):
     assert(pred.shape == labels.shape)
     assert(pred.shape[0] > 1)
 
-    K = pred.shape[0]
+    # K = pred.shape[0]
     m = pred.shape[1]
     metrics = {}
 
-    for k in range(K):
-        metrics["class_" + str(k) + "_metrics"] = logistic_metrics(pred[k, :].reshape(1, m), labels[k, :].reshape(1, m))
+    # for k in range(K):
+    #     metrics["class_" + str(k) + "_metrics"] = logistic_metrics(pred[k, :].reshape(1, m), labels[k, :].reshape(1, m))
+    metrics["metrics_per_class"] = logistic_metrics(pred, labels)
 
     p = one_hot_decoding(pred)
     l = one_hot_decoding(labels)

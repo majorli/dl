@@ -345,6 +345,39 @@ class NNModel:
 
         return
 
+    def transfer(self, extra_hidden_layers=None, init_type=None, batch_norm=True):
+        """transfer to another task with same model type
+
+        Transfer current network to another task with same model type.
+
+        Keyword Arguments:
+            extra_hidden_layers -- When transfer to another task, extra hidden layers can be appended to current hidden layers (default: {None})
+            init_type -- HE_RELU, HE_TANH or HE_OTHERS, None to initialize according to each hidden layer and HE_OTHERS for output layer (default {None})
+            batch_norm -- True to initialize parameters for batch normalization algorithm (default: {True})
+        """
+        # 1. get rid of current output layer
+        del self.layers[-1]
+        first_new_layer = (self.layers)
+
+        # 2. append extra hidden layers if provided
+        if extra_hidden_layers is not None:
+            self.layers = self.layers + extra_hidden_layers
+
+        # 3. add output layer of same model type
+        d = self.layers[-1].n
+        if self.model_type == SOFTMAX_REGRESSION:
+            self.layers.append(NNLayer(d, SOFTMAX))
+        elif self.model_type == LINEAR_REGRESSION:
+            self.layers.append(NNLayer(d, LINEAR))
+        else:
+            self.layers.append(NNLayer(d, SIGMOID))
+
+        # 4. initialize parameters for new layers
+        for l in range(first_new_layer, len(self.layers)):
+            self.layers[l].initialize_parameters(self.layers[l-1].n, batch_norm=batch_norm, init_type=init_type)
+
+        return
+
     def initialize_parameters(self, init_type=None, batch_norm=True):
         """randomly initialize parameters
 
@@ -524,7 +557,7 @@ class NNModel:
 
         return Y_hat, A
 
-    def gradient_descent(self, X, Y, learning_rate, num_iters=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9):
+    def gradient_descent(self, X, Y, learning_rate, num_iters=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9, transfer_layers=0):
         """gradient descent
 
         Batch gradient descent optimizer for neural network model.
@@ -541,6 +574,7 @@ class NNModel:
             L2_param -- L2 regularization parameter, no L2 regularization if None or zero (default: {None})
             batch_norm -- True if use Batch Normalization (default: {True})
             bn_momentum -- Momentum for Batch Normalization (default: {0.9})
+            transfer_layers -- Number of extra hidden layers and output layer for transferred network to learn only these added layers, 0 to learn all the layers (default: {0})
 
         Returns:
             costs -- List of costs corresponding to cost_step
@@ -556,7 +590,10 @@ class NNModel:
                     costs.append((i, self.cost(Y)))
             self.backward_propagation(X, Y, L2_param=L2_param, batch_norm=batch_norm)
 
-            for l in range(1, len(self.layers)):
+            start_layer = 1
+            if transfer_layers > 0:
+                start_layer = len(self.layers) - transfer_layers
+            for l in range(start_layer, len(self.layers)):
                 self.layers[l].W = self.layers[l].W - learning_rate * self.layers[l].dW
                 self.layers[l].b = self.layers[l].b - learning_rate * self.layers[l].db
                 if batch_norm:
@@ -569,7 +606,7 @@ class NNModel:
 
         return costs
 
-    def mini_batch_gradient_descent(self, X, Y, learning_rate, mini_batch_size=64, num_epochs=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9):
+    def mini_batch_gradient_descent(self, X, Y, learning_rate, mini_batch_size=64, num_epochs=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9, transfer_layers=0):
         """mini_batch gradient descent
 
         Mini_Batch gradient descent optimizer for neural network model.
@@ -589,6 +626,7 @@ class NNModel:
             L2_param -- L2 regularization parameter, no L2 regularization if None or zero (default: {None})
             batch_norm -- True if use Batch Normalization (default: {True})
             bn_momentum -- Momentum for Batch Normalization (default: {0.9})
+            transfer_layers -- Number of extra hidden layers and output layer for transferred network to learn only these added layers, 0 to learn all the layers (default: {0})
 
         Returns:
             costs -- List of costs corresponding to cost_step
@@ -616,7 +654,10 @@ class NNModel:
 
                 self.backward_propagation(MB_X, MB_Y, L2_param=L2_param, batch_norm=batch_norm)
 
-                for l in range(1, len(self.layers)):
+                start_layer = 1
+                if transfer_layers > 0:
+                    start_layer = len(self.layers) - transfer_layers
+                for l in range(start_layer, len(self.layers)):
                     self.layers[l].W = self.layers[l].W - learning_rate * self.layers[l].dW
                     self.layers[l].b = self.layers[l].b - learning_rate * self.layers[l].db
                     if batch_norm:
@@ -629,7 +670,7 @@ class NNModel:
 
         return costs
 
-    def adam(self, X, Y, learning_rate, momentum=0.9, rmsprop=0.999, mini_batch_size=64, num_epochs=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9):
+    def adam(self, X, Y, learning_rate, momentum=0.9, rmsprop=0.999, mini_batch_size=64, num_epochs=10000, cost_step=100, keep_probs=None, L2_param=None, batch_norm=True, bn_momentum=0.9, transfer_layers=0):
         """Adam optimizer
 
         Adam optimizer combines momentum and RMSProp gradient descent.
@@ -649,6 +690,7 @@ class NNModel:
             L2_param -- L2 regularization parameter, no L2 regularization if None or zero (default: {None})
             batch_norm -- True if use Batch Normalization (default: {True})
             bn_momentum -- Momentum for Batch Normalization (default: {0.9})
+            transfer_layers -- Number of extra hidden layers and output layer for transferred network to learn only these added layers, 0 to learn all the layers (default: {0})
 
         Returns:
             costs -- List of costs corresponding to cost_step
@@ -706,8 +748,11 @@ class NNModel:
 
                 self.backward_propagation(MB_X, MB_Y, L2_param=L2_param, batch_norm=batch_norm)
 
+                start_layer = 1
+                if transfer_layers > 0:
+                    start_layer = len(self.layers) - transfer_layers
                 count = count + 1
-                for l in range(1, len(self.layers)):
+                for l in range(start_layer, len(self.layers)):
                     VdW[l] = momentum * VdW[l] + (1 - momentum) * self.layers[l].dW
                     Vdb[l] = momentum * Vdb[l] + (1 - momentum) * self.layers[l].db
                     VdW_corrected[l] = VdW[l] / (1 - momentum ** count)
