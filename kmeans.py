@@ -112,7 +112,7 @@ class Kmeans:
         dist = np.sum(np.linalg.norm(c1 - c2, axis=0, keepdims=True))
         return dist
 
-    def run(self, K=2, num_tries=1, max_steps=0, keep_distortions=False):
+    def run(self, K=2, num_tries=1, max_steps=0, print_distortions=False):
         """run K-means
 
             Run K-means "num_tries" times, at most "max_steps" iterations each time.
@@ -121,58 +121,90 @@ class Kmeans:
             K -- Number of clusters (default: {2})
             num_tries -- Number of running times (default: {1})
             max_steps -- Maximum number of steps each running, 0 to iterate until converge (default: {0})
-            keep_distortions -- True to store distortions for all steps, False to store only the last step (defalut: {False})
+            print_distortions -- True to print distortions for all steps (defalut: {False})
 
         Returns:
-            results -- Lists of K-means results for all running times, each result is a map {clusters, distortions:[(step, distortion)], steps, last_moving_distance}
-                        
+            results -- Map of K-means results:
+                        {
+                          "clusters" : (num_tries * num_examples) matrix, each row is the clusters given out in each try,
+                          "distortions" : (num_tries * 1) matrix, each element is the final distortion given out in each try,
+                          "Ks" : (num_tries * 1) matrix, each element is the number of clusters given out in each try,
+                          "last_moving_distances" : (num_tries * 1) matrix, each element is the total centroids moving distance of last moving in each try,
+                          "smallest_distortion" : the smallest distortion among all tries,
+                          "best_tries" : order-1 array of indice of best tries, i.e. the smallest final distortion
+                        }
         """
         m = self.X.shape[1]
         assert(K > 1 and K < m)
 
-        results = []
+        results = {}
+        Clusters = np.zeros((0, m))     # append clusters of each try by np.vstack((Clusters, clusters))
+        distortions = []                # append distortion and change to matix by np.array(distortions).reshape(-1, 1)
+        Ks = []                         # append centroids.shape[1] and change to matix by np.array(Ks).reshape(-1, 1)
+        last_moving_distances = []      # append last_moving_distance and change to matix by np.array(last_moving_distances).reshape(-1, 1)
+
         for t in range(num_tries):
-            result = {
-                    "clusters" : None,
-                    "distortions" : [],
-                    "steps" : 0,
-                    "last_moving_distance" : 0.0
-                    }
             # initial centroids and clusters
             centroids = self.choose_centroids(K)
             clusters = self.cluster_assignment(centroids)
             step = 0
+            bad_try = False
+            distance = 0.0
+
+            if print_distortions:
+                print("Try " + str(t) + ":")
             while max_steps == 0 or step < max_steps:
+                if print_distortions:
+                    print("  Step " + str(step) + " distortion =" + str(self.distortion(clusters, centroids)))
                 # keep old centroids and clusters
                 old_centroids = centroids.copy()
                 old_clusters = clusters.copy()
                 # move centroids and re-assign clusters
                 centroids = self.move_centroids(clusters, centroids)
                 if centroids.shape[1] < 2:
-                    # bad try
-                    result = None
+                    # bad try, skip
+                    bad_try = True
                     break
                 clusters = self.cluster_assignment(centroids)
                 # compare
                 no_change = self.compare_clusters(clusters, old_clusters)
                 distance = self.moving_distance(centroids, old_centroids)
-                if (no_change and distance < 1e-8):
-                    # converged
-                    result["clusters"] = clusters
-                    result["distortions"].append((step, self.distortion(clusters, centroids)))
-                    result["steps"] = step
-                    result["last_moving_distance"] = distance
-                    break
-                else:
-                    if keep_distortions or step == max_steps - 1:
-                        result["distortions"].append((step, self.distortion(clusters, centroids)))
-                    if step == max_steps - 1:
-                        result["clusters"] = clusters
-                        result["steps"] = step
-                        result["last_moving_distance"] = distance
                 step = step + 1
+                if no_change and distance < 1e-8:
+                    # converged
+                    break
+            ## end of while
+
             # one try finished, store result
-            results.append(result)
+            if bad_try == False:
+                Clusters = np.vstack((Clusters, clusters))
+                distortion = self.distortion(clusters, centroids)
+                distortions.append(distortion)
+                Ks.append(centroids.shape[1])
+                last_moving_distances.append(distance)
+        ## end of for
+
+        # store all results
+        results["Clusters"] = Clusters
+        results["distortions"] = np.array(distortions).reshape(-1, 1)
+        results["Ks"] = np.array(Ks).reshape(-1, 1)
+        results["last_moving_distances"] = np.array(last_moving_distances).reshape(-1, 1)
+        min_distortion = np.min(results["distortions"])
+        results["smallest_distortion"] = min_distortion
+        results["best_tries"] = np.arange(Clusters.shape[0]).reshape(-1, 1)[(results["distortions"] == min_distortion).squeeze(), :].squeeze()
 
         return results
+
+    def best_clusters(results):
+        """retreive best clusters from results
+
+            Static methods, invoke by "km.Kmeans.best_clusters(results)"
+
+        Arguments:
+            results -- Kmeans model running results
+
+        Returns:
+            best_clusters -- matrix of clusters from the best tries
+        """
+        return results["Clusters"][results["best_tries"], :]
 
