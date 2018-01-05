@@ -166,6 +166,10 @@ class Kmeans:
                 else:
                     if keep_distortions or step == max_steps - 1:
                         result["distortions"].append((step, self.distortion(clusters, centroids)))
+                    if step == max_steps - 1:
+                        result["clusters"] = clusters
+                        result["steps"] = step
+                        result["last_moving_distance"] = distance
                 step = step + 1
             # one try finished, store result
             results.append(result)
