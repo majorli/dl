@@ -14,7 +14,39 @@ class Kmeans:
             X -- Data set
         """
         self.X = X
-        
+        self.clusters = None        # saved results: clusters of examples
+        self.centroids = None       # saved results: centroids
+
+    def save(self, fn, results, k):
+        """save given result
+
+            Save the model and the given result
+
+        Arguments:
+            fn -- filename
+            results -- given results
+            k -- the number of result to save in given results
+        """
+        assert(self.X.shape[1] == results["Clusters"].shape[1])
+        self.clusters = results["Clusters"][k, :]
+
+        # self.clusters = clusters.reshape(1, -1)
+        C = np.max(self.clusters) + 1
+        self.centroids = np.zeros((self.X.shape[0], C))
+        for c in range(C):
+            cl = self.X[:, self.clusters == c]
+            if cl.shape[1] == 0:
+                continue
+            self.centroids[:, c] = np.mean(cl, axis=1)
+
+        np.savez(fn, X=self.X, clusters=self.clusters, centroids=self.centroids)
+
+    def load(self, fn):
+        npz = np.load(fn + ".npz")
+        self.X = npz["X"]
+        self.clusters = npz["clusters"]
+        self.centroids = npz["centroids"]
+
     def choose_centroids(self, K):
         """choose centroids
         
@@ -49,7 +81,7 @@ class Kmeans:
         norms = np.zeros((K, m))
 
         for k in range(K):
-            norms[k, :] = np.linalg.norm(self.X - centroids[:, [k]], axis = 0, keepdims = True)
+            norms[k, :] = np.linalg.norm(self.X - centroids[:, [k]], axis=0, keepdims=True)
 
         return np.argmin(norms, axis=0)
 
@@ -69,17 +101,15 @@ class Kmeans:
         m = self.X.shape[1]
         K = centroids.shape[1]
         assert(K < m and K > 1)
-        new_centroids = np.zeros(centroids.shape)
-        masks = []
+        new_centroids = np.zeros((centroids.shape[0], 0))
 
         for k in range(K):
             cluster = self.X[:, clusters == k]
             if cluster.shape[1] == 0:
                 continue
-            masks.append(k)
-            new_centroids[:, k] = np.mean(cluster, axis = 1)
+            new_centroids = np.hstack((new_centroids, np.mean(cluster, axis=1, keepdims=True)))
 
-        return new_centroids[:, masks]
+        return new_centroids
 
     def distortion(self, clusters, centroids):
         """distortion
@@ -112,13 +142,14 @@ class Kmeans:
         dist = np.sum(np.linalg.norm(c1 - c2, axis=0, keepdims=True))
         return dist
 
-    def run(self, K=2, num_tries=1, max_steps=0, print_distortions=False):
+    def run(self, K=2, incremental=False, num_tries=1, max_steps=0, print_distortions=False):
         """run K-means
 
             Run K-means "num_tries" times, at most "max_steps" iterations each time.
 
         Keyword Arguments:
             K -- Number of clusters (default: {2})
+            incremental -- True if do incremental clustering, only one try, must have got saved results (default {False})
             num_tries -- Number of running times (default: {1})
             max_steps -- Maximum number of steps each running, 0 to iterate until converge (default: {0})
             print_distortions -- True to print distortions for all steps (defalut: {False})
@@ -143,19 +174,30 @@ class Kmeans:
         Ks = []                         # append centroids.shape[1] and change to matix by np.array(Ks).reshape(-1, 1)
         last_moving_distances = []      # append last_moving_distance and change to matix by np.array(last_moving_distances).reshape(-1, 1)
 
+        if incremental:
+            assert(self.centroids is not None)
+            num_tries = 1
+
         for t in range(num_tries):
             # initial centroids and clusters
-            centroids = self.choose_centroids(K)
-            clusters = self.cluster_assignment(centroids)
+            if incremental:
+                centroids = self.centroids
+                clusters = self.clusters
+            else:
+                centroids = self.choose_centroids(K)
+                clusters = self.cluster_assignment(centroids)
             step = 0
             bad_try = False
             distance = 0.0
 
-            if print_distortions:
-                print("Try " + str(t) + ":")
+            print()
+            print("Try " + str(t) + ":")
             while max_steps == 0 or step < max_steps:
                 if print_distortions:
                     print("  Step " + str(step) + " distortion =" + str(self.distortion(clusters, centroids)))
+                else:
+                    print(".", end="", flush=True)
+
                 # keep old centroids and clusters
                 old_centroids = centroids.copy()
                 old_clusters = clusters.copy()
@@ -185,7 +227,7 @@ class Kmeans:
         ## end of for
 
         # store all results
-        results["Clusters"] = Clusters
+        results["Clusters"] = Clusters.astype(int)
         results["distortions"] = np.array(distortions).reshape(-1, 1)
         results["Ks"] = np.array(Ks).reshape(-1, 1)
         results["last_moving_distances"] = np.array(last_moving_distances).reshape(-1, 1)
@@ -194,6 +236,33 @@ class Kmeans:
         results["best_tries"] = np.arange(Clusters.shape[0]).reshape(-1, 1)[(results["distortions"] == min_distortion).squeeze(), :].squeeze()
 
         return results
+
+    def assign_new_data(self, X_new):
+        """assign cluster to new data
+
+            Assign cluster to new examples according to currently saved result, without change current centroids and number of clusters.
+
+        Arguments:
+            X_new -- New examples to assign clusters
+
+        Returns:
+            clusters -- Clusters assgined to new examples
+        """
+        assert(self.centroids is not None)
+        assert(X_new.shape[0] == self.X.shape[0])
+
+        m = X_new.shape[1]
+        K = self.centroids.shape[1]
+        norms = np.zeros((K, m))
+
+        for k in range(K):
+            norms[k, :] = np.linalg.norm(X_new - self.centroids[:, [k]], axis=0, keepdims=True)
+
+        self.X = np.hstack((self.X, X_new))
+        # clusters = np.argmin(norms, axis=0).reshape(1, -1)
+        clusters = np.argmin(norms, axis=0)
+        self.clusters = np.hstack((self.clusters, clusters))
+        return clusters
 
     def best_clusters(results):
         """retreive best clusters from results
