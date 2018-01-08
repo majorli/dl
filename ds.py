@@ -126,6 +126,124 @@ def polynomial(X, ord=2):
 
     return _X
 
+def pca_by_k(X, k):
+    """Primary Component Analysis
+
+        Apply PCA to dataset X.
+
+    Arguments:
+        X -- dataset to apply PCA
+        k -- number of dimensions to retain
+
+    returns:
+        Z -- reduced dataset
+        var_retained -- proportion of variance retained
+    """
+    return Z, var_retained
+
+def pca_by_k(X, k):
+    """Primary Component Analysis
+
+        Apply PCA to dataset X. Given number of dimensions for reduced dataset.
+
+    Arguments:
+        X -- dataset to apply PCA
+        Ur -- reduce matrix
+        k -- number of dimensions to retain
+
+    returns:
+        Z -- reduced dataset
+        var_retained -- proportion of variance retained
+    """
+    n = X.shape[0]
+    assert(k < n and k > 0)
+    X_norm, _1, _2 = normalize(X)
+    Sigma = np.dot(X_norm, X_norm.T)
+    U, s, V = np.linalg.svd(Sigma)
+    Ur = U[:, range(k)]
+    Z = np.dot(Ur.T, X_norm)
+    var_retained = np.sum(s[range(k)]) / np.sum(s)
+
+    return Z, Ur, var_retained
+
+def pca_by_p(X, p):
+    """Primary Component Analysis
+
+        Apply PCA to dataset X. Given proportion of retained variance.
+
+    Arguments:
+        X -- dataset to apply PCA
+        p -- proportion of variance to retain
+
+    returns:
+        Z -- reduced dataset
+        Ur -- reduce matrix
+        k -- proportion of variance retained
+    """
+    X_norm, _1, _2 = normalize(X)
+    Sigma = np.dot(X_norm, X_norm.T)
+    U, s, V = np.linalg.svd(Sigma)
+    k = 1
+    S = np.sum(s)
+    while k < len(s):
+        if np.sum(s[range(k)]) / S >= p:
+            break
+        k = k + 1
+    Ur = U[:, range(k)]
+    Z = np.dot(Ur.T, X_norm)
+    var_retained = np.sum(s[range(k)]) / np.sum(s)
+
+    return Z, Ur, var_retained
+
+def pca(X, epsilon=1e-4):
+    """Primary Component Analysis
+
+        Apply PCA to dataset X. Retain elements where eigenvalues > 0.
+
+    Arguments:
+        X -- dataset to apply PCA
+
+    Keyword Arguments:
+        epsilon -- eigenvalues less then epsilon will be ignored (default: {1e-4})
+
+    returns:
+        Z -- reduced dataset
+        Ur -- reduce matrix
+        var_retained -- proportion of variance retained
+    """
+    X_norm, _1, _2 = normalize(X)
+    Sigma = np.dot(X_norm, X_norm.T)
+    U, s, V = np.linalg.svd(Sigma)
+    k = 1
+    while k < len(s):
+        if s[k] < epsilon:
+            break
+        k = k + 1
+    Ur = U[:, range(k)]
+    Z = np.dot(Ur.T, X_norm)
+    var_retained = np.sum(s[range(k)]) / np.sum(s)
+
+    return Z, Ur, var_retained
+
+def pca_reduce(X, Ur):
+    """reduce dataset
+
+        Reduce dataset by given reduction matrix Ur.
+        Ur is often computed by applying on training set and be used to reduce dev/test set or other datasets.
+
+    Arguments:
+        X -- dataset to reduce
+        Ur -- given reduction matrix
+
+    Returns:
+        Z -- normalized and reduced dataset
+    """
+    assert(Ur.shape[0] == X.shape[0])
+    X_norm, _1, _2 = normalize(X)
+    Z = np.dot(Ur.T, X)
+
+    return Z
+
 # ******************** #
 # Activation functions #
 # ******************** #
