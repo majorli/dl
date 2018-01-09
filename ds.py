@@ -436,6 +436,13 @@ def multi_class_ds(num, centroids=[[0.0, 0.0], [2.0, 2.0]], radius=[[0.5, 0.5], 
         Y = np.hstack((Y, Yk))
     return X, Y.astype(int)
 
+def anomaly_ds(num, dims=2, num_anomalies=1):
+    X = np.random.randn(dims, num)
+    Y = np.zeros((1, num))
+    X = np.hstack((X, np.random.normal(10.0, 0.5, (dims, num_anomalies))))
+    Y = np.hstack((Y, np.ones((1, num_anomalies))))
+    return X, Y
+
 # ****************** #
 # Evaluating metrics #
 # ****************** #

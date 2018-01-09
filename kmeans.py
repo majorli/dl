@@ -2,6 +2,19 @@
 
 import numpy as np
 
+def best_clusters(results):
+    """retreive best clusters from results
+
+        Static methods, invoke by "km.Kmeans.best_clusters(results)"
+
+    Arguments:
+        results -- Kmeans model running results
+
+    Returns:
+        best_clusters -- matrix of clusters from the best tries
+    """
+    return results["Clusters"][results["best_tries"], :]
+
 class Kmeans:
     """K-means model"""
 
@@ -263,17 +276,4 @@ class Kmeans:
         clusters = np.argmin(norms, axis=0)
         self.clusters = np.hstack((self.clusters, clusters))
         return clusters
-
-    def best_clusters(results):
-        """retreive best clusters from results
-
-            Static methods, invoke by "km.Kmeans.best_clusters(results)"
-
-        Arguments:
-            results -- Kmeans model running results
-
-        Returns:
-            best_clusters -- matrix of clusters from the best tries
-        """
-        return results["Clusters"][results["best_tries"], :]
 

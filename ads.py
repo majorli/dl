@@ -73,10 +73,33 @@ class ADS:
         Returns:
             epsilon -- best threshold
         """
-        pval = multi_variant_Gaussian(Xval, self.mu, self.sigma2)
+        assert(Xval is not None and Yval is not None)
 
-        # TODO: 20180108 23:34
-        return epsilon
+        pval = multi_variant_Gaussian(Xval, self.mu, self.sigma2)
+        p_max = np.max(pval)
+        p_min = np.min(pval)
+        intv = (p_max - p_min) / 1e6
+
+        best_f1 = -1e-8
+        best_eps = 0.0
+        for epsilon in np.arange(p_min + intv, p_max, intv):
+            p = pval < epsilon
+            pp = np.sum(p)
+            tp = np.sum((Yval == 1) & (p == True))
+            fn = np.sum((Yval == 1) & (p == False))
+            pr = tp / pp
+            rc = tp / (tp + fn)
+            if tp == 0:
+                f1 = 0.0
+            else:
+                f1 = 2 * pr * rc / (pr + rc)
+            if f1 > best_f1:
+                best_f1 = f1;
+                best_eps = epsilon
+            else:
+                break
+
+        return best_eps
 
     def detect(self, threshold=None, Xval=None, Yval=None):
         """detect anomalies
@@ -90,4 +113,10 @@ class ADS:
         Returns:
             Y -- Anomalies
         """
-        return Y
+        if threshold is None:
+            eps = self.learn_best_threshold(Xval, Yval)
+        else:
+            eps = threshold
+
+        return self.p < eps
+
