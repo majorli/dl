@@ -121,7 +121,7 @@ class Recommender:
 
         return costs
 
-    def adam(self, learning_rate, momentum=0.9, rmsprop=0.999, num_iters=10000, cost_step=100, L2_param=None):
+    def adam(self, learning_rate, start_round=1, momentum=0.9, rmsprop=0.999, num_rounds=10000, cost_step=100, L2_param=None):
         """Adam optimizer
 
             Adam optimizer combines momentum and RMSProp gradient descent
@@ -130,14 +130,15 @@ class Recommender:
             learning_rate -- Learning rate.
 
         Keyword Parameters:
+            start_round -- Start round number, when continuously optimizing (default: {1})
             momentum -- Momentum parameter for Adam algorithm (default: {0.9})
             rmsprop -- RMSProp parameter for Adam algorithm (default: {0.999})
-            num_iters -- Number of iterations (default: {10000})
+            num_rounds -- Number of rounds (default: {10000})
             cost_step -- Step to compute cost function, 0 to never compute cost (default: {100})
             L2_param -- L2 regularization parameter, no L2 regularization if None or zero (default: {None})
 
         Returns:
-            costs -- List of costs corresponding to cost_step
+            costs, finish_round -- List of costs corresponding to cost_step, finish round number
         """
         epsilon = 1e-8
         costs = []
@@ -148,21 +149,21 @@ class Recommender:
         SDTheta = np.zeros(self.Theta.shape)
 
         print("Start", end="", flush=True)
-        for i in range(num_iters):
-            c = (cost_step > 0 and i % cost_step == 0) or i == num_iters - 1
+        for i in range(num_rounds):
+            c = (cost_step > 0 and i % cost_step == 0) or i == num_rounds - 1
             self.learn(L2_param, c)
             if c:
                 costs.append((i, self.cost))
 
             VDX = momentum * VDX + (1 - momentum) * self.DX
             VDTheta = momentum * VDTheta + (1 - momentum) * self.DTheta
-            VDX_corrected = VDX / (1 - momentum ** (i + 1))
-            VDTheta_corrected = VDTheta / (1 - momentum ** (i + 1))
+            VDX_corrected = VDX / (1 - momentum ** (i + start_round))
+            VDTheta_corrected = VDTheta / (1 - momentum ** (i + start_round))
 
             SDX = rmsprop * SDX + (1 - rmsprop) * (self.DX ** 2)
             SDTheta = rmsprop * SDTheta + (1 - rmsprop) * (self.DTheta ** 2)
-            SDX_corrected = SDX / (1 - rmsprop ** (i + 1))
-            SDTheta_corrected = SDTheta / (1 - rmsprop ** (i + 1))
+            SDX_corrected = SDX / (1 - rmsprop ** (i + start_round))
+            SDTheta_corrected = SDTheta / (1 - rmsprop ** (i + start_round))
 
             self.X = self.X - learning_rate * VDX_corrected / (np.sqrt(SDX_corrected) + epsilon)
             self.Theta = self.Theta - learning_rate * VDTheta_corrected / (np.sqrt(SDTheta_corrected) + epsilon)
@@ -172,7 +173,7 @@ class Recommender:
 
         print("Finished!")
 
-        return costs
+        return costs, start_round + num_rounds
 
     def save(self, fn):
         np.savez(fn, Y=self.Y, X=self.X, Theta=self.Theta)
@@ -219,13 +220,13 @@ class Recommender:
         return
 
     def add_users(self, Y_new_users):
-        assert(Y_new_users.shape[1] == self.Y.shape[1])
+        assert(Y_new_users.shape[0] == self.Y.shape[0])
         # append data of new users and re-normalize ratings
         self.Y = np.hstack((self.Y, Y_new_users))
         self.normalizeRatings()
         # append corresponding features of new users, initialize these features randomly
-        num_features = self.X.shape[1]
-        self.X = np.vstack((self.X, np.random.randn(Y_new_users.shape[0], num_features)))
+        num_features = self.Theta.shape[1]
+        self.Theta = np.vstack((self.Theta, np.random.randn(Y_new_users.shape[1], num_features)))
         
         return
 
