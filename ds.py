@@ -443,6 +443,12 @@ def anomaly_ds(num, dims=2, num_anomalies=1):
     Y = np.hstack((Y, np.ones((1, num_anomalies))))
     return X, Y
 
+def rating_ds(num_products, num_users, min_rate=-np.Inf, max_rate=np.Inf, mean_rate=75.0, stdev_rate=15.0, nan_prop=0.25):
+    Y, _ = bounded_linear(np.random.normal(mean_rate, stdev_rate, (num_products, num_users)), lbound=min_rate, ubound=max_rate)
+    mask = np.random.rand(num_products, num_users) < nan_prop
+    Y[mask] = np.nan
+    return Y
+
 # ****************** #
 # Evaluating metrics #
 # ****************** #
