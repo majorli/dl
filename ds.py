@@ -129,30 +129,15 @@ def polynomial(X, ord=2):
 def pca_by_k(X, k):
     """Primary Component Analysis
 
-        Apply PCA to dataset X.
-
-    Arguments:
-        X -- dataset to apply PCA
-        k -- number of dimensions to retain
-
-    returns:
-        Z -- reduced dataset
-        var_retained -- proportion of variance retained
-    """
-    return Z, var_retained
-
-def pca_by_k(X, k):
-    """Primary Component Analysis
-
         Apply PCA to dataset X. Given number of dimensions for reduced dataset.
 
     Arguments:
         X -- dataset to apply PCA
-        Ur -- reduce matrix
         k -- number of dimensions to retain
 
     returns:
         Z -- reduced dataset
+        Ur -- reduce matrix
         var_retained -- proportion of variance retained
     """
     n = X.shape[0]
