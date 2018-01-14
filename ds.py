@@ -434,6 +434,12 @@ def rating_ds(num_products, num_users, min_rate=-np.Inf, max_rate=np.Inf, mean_r
     Y[mask] = np.nan
     return Y
 
+def func_ds(func, X, err=.1):
+    Y = func(X)
+    e = np.random.randn(Y.shape[0], Y.shape[1]) * err + 1.0
+    Y = Y * e
+    return Y
+
 # ****************** #
 # Evaluating metrics #
 # ****************** #
