@@ -5,7 +5,6 @@
 #   NNModel -- neural network model
 
 import numpy as np
-import math
 
 from . import ds
 
@@ -633,7 +632,7 @@ class NNModel:
         """
         costs = []
         m = X.shape[1]
-        num_batches = math.ceil(m / mini_batch_size)
+        num_batches = np.ceil(m / mini_batch_size)
 
         print("Start", end = "", flush = True)
         for e in range(num_epochs):
@@ -698,7 +697,7 @@ class NNModel:
         epsilon = 1e-8
         costs = []
         m = X.shape[1]
-        num_batches = math.ceil(m / mini_batch_size)
+        num_batches = np.ceil(m / mini_batch_size)
 
         VdW = [None]
         VdW_corrected = [None]
