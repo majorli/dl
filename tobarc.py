@@ -31,11 +31,11 @@ def __recommend(X, Theta, Y_mean):
     Returns:
         R -- recommendation, np.array, shape (num_products, num_customers)
     """
-    R = np.round(np.dot(X, Theta.T) + Y_mean)
+    R = np.dot(X, Theta.T) + Y_mean
 
     return R
 
-def learn(Y, num_features=100, adam=False, learning_rate=0.0001, lambd=0.0, num_steps=1000, cost_step=10):
+def learn(Y, deci=None, X0=None, Theta0=None, num_features=100, adam=False, learning_rate=0.0001, lambd=0.0, num_steps=1000, cost_step=10):
     """
 
     Run the model to fit recommendation
@@ -44,7 +44,10 @@ def learn(Y, num_features=100, adam=False, learning_rate=0.0001, lambd=0.0, num_
         Y -- dataset to learn, np.array, shape (num_products, num_customers)
     
     Keyword Arguments:
-        num_features -- number of features to learn (default: {100})
+        deci -- decimal of recommendation values (default: {None})
+        X0 -- Initial features for products, None to initialize randomly (default: {None})
+        Theta0 -- Initial features for customers, None to initialize randomly (default: {None})
+        num_features -- number of features to learn, only used when none initial features (default: {100})
         adam -- True to use adam optimizer (default: {False})
         learning_rate -- learning rate (default: {0.0001})
         lamdb -- L2 regularization parameter (default: {0.0})
@@ -67,8 +70,12 @@ def learn(Y, num_features=100, adam=False, learning_rate=0.0001, lambd=0.0, num_
     y = tf.placeholder(tf.float32, shape=[num_products, num_customers])
 
     # Variables: feature vectors for all customers (theta) and all products (x)
-    x = tf.Variable(tf.random_normal([Y.shape[0], num_features]))
-    theta = tf.Variable(tf.random_normal([Y.shape[1], num_features]))
+    if X0 is None or Theta0 is None:
+        x = tf.Variable(tf.random_normal([Y.shape[0], num_features]))
+        theta = tf.Variable(tf.random_normal([Y.shape[1], num_features]))
+    else:
+        x = tf.Variable(X0, dtype=tf.float32)
+        theta = tf.Variable(Theta0, dtype=tf.float32)
 
     # computation graph
     pred = tf.matmul(x, tf.transpose(theta))
@@ -100,6 +107,9 @@ def learn(Y, num_features=100, adam=False, learning_rate=0.0001, lambd=0.0, num_
     X = sess.run(x)
     Theta = sess.run(theta)
     R = __recommend(X, Theta, Y_mean)
+    if deci is not None:
+        R = np.round(R, deci)
+    R += 0.0
 
     sess.close()
 
