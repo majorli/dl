@@ -1,20 +1,20 @@
-# -*- coding: GBK -*-
 import numpy as np
 import csv
 import os
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
+from rcio import *
+
 class Dataset:
     """Dataset"""
-    _name = None        # raw data file, csv, sales records
+    _name = None                # raw data file, csv, sales records
     _products = {}              # products in the dataset
     _customers = {}             # customers in the dataset
     _axis_p, _axis_c = [], []   # axis of products and customers
     _dates = set()              # dates in the dataset
     _num_data = 0               # number of non-zero data in the dataset
     _ds = None                  # dataset main table
-    # _products_to_predict = []   # ids of products to predict
 
     def __init__(self):
         return
@@ -23,7 +23,8 @@ class Dataset:
         _p_wl = []                  # whitelist of products
         _c_wl = []                  # whitelist of customers
         while True:
-            print("You have six options to filter the dataset:")
+            rc_state(self.states())
+            rc_highlight("You have six options to filter the dataset:")
             print("  1. Put/Remove given products into/from the whitelist to prevent them to be removed.")
             print("  2. Put/Remove given customers into/from the whitelist to prevent them to be removed.")
             print("  3. Remove given products.")
@@ -35,20 +36,21 @@ class Dataset:
             print("  9. Clear current whitelist of customers.")
             opt = 0
             while True:
-                o = input("Now give me your choice (1..9, 0 to exit filtering): ").strip()[0]
+                o = rc_highlight_in("Now give me your choice (1..9, 0 to exit filtering): ")[0]
                 if o.isdigit():
                     opt = int(o)
                     break
+            # end while
             if opt == 0:
                 break
-            print("REMEMBER: Whitelists are temporary, they will BE CLEARED after you leave filtering and they will NEVER BE SAVED!!!")
+            rc_warn("REMEMBER: Whitelists are temporary, they will BE CLEARED after you leave filtering and they will NEVER BE SAVED!!!")
             if opt == 1 or opt == 2:
-                ids = input("Enter the ids to toggle whitelist states, separating by <spaces>: ").strip().split()
+                ids = rc_input("Enter the ids to toggle whitelist states, separating by <spaces>: ").split()
                 if opt == 1:
                     for i in ids:
                         si = "0" * (8 - len(i[:8])) + i[:8]
                         if si not in self._products:
-                            print("Product id:", si, ", not exists.")
+                            print("Product id:", si, bcolors.FAIL + "not exists." + bcolors.ENDC)
                             continue
                         if si in _p_wl:
                             _p_wl.remove(si)
@@ -60,7 +62,7 @@ class Dataset:
                     for i in ids:
                         si = "0" * (9 - len(i[:9])) + i[:9]
                         if si not in self._customers:
-                            print("Customer id:", si, ", not exists.")
+                            print("Customer id:", si, bcolors.FAIL + "not exists." + bcolors.ENDC)
                             continue
                         if si in _c_wl:
                             _c_wl.remove(si)
@@ -69,15 +71,15 @@ class Dataset:
                             _c_wl.append(si)
                             print("Customer id:", si, ", name:", self._customers[si], "is put into whitelist.")
             elif opt == 3 or opt == 4:
-                ids = input("Enter the ids to remove from dataset, separating by <spaces>: ").strip().split()
+                ids = rc_input("Enter the ids to remove from dataset, separating by <spaces>: ").split()
                 if opt == 3:
                     for i in ids:
                         si = "0" * (8 - len(i[:8])) + i[:8]
                         if si not in self._products:
-                            print("Product id:", si, "not exists.")
+                            print("Product id:", si, bcolors.FAIL + "not exists." + bcolors.ENDC)
                             continue
                         if si in _p_wl:
-                            print("Product id:", si, "is in the whitelist, cannot remove it.")
+                            print("Product id:", si, bcolors.FAIL + "is in the whitelist, cannot remove it." + bcolors.ENDC)
                             continue
                         coord = self._axis_p.index(si)
                         name = self._products.pop(si)
@@ -88,10 +90,10 @@ class Dataset:
                     for i in ids:
                         si = "0" * (9 - len(i[:9])) + i[:9]
                         if si not in self._customers:
-                            print("Customer id:", si, " not exists.")
+                            print("Customer id:", si, bcolors.FAIL + "not exists." + bcolors.ENDC)
                             continue
                         if si in _c_wl:
-                            print("Customer id:", si, "is in the whitelist, cannot remove it.")
+                            print("Customer id:", si, bcolors.FAIL + "is in the whitelist, cannot remove it." + bcolors.ENDC)
                             continue
                         coord = self._axis_c.index(si)
                         name = self._customers.pop(si)
@@ -100,14 +102,14 @@ class Dataset:
                         print("Customer id:", si, ", name:", name, "is removed from dataset.")
                 self._num_data = np.sum(np.nan_to_num(self._ds) > 0.0)
             elif opt == 5 or opt == 6:
-                s = input("Tell me the cutoff value (>= 0): ").strip()
+                s = rc_input("Tell me the cutoff value (>= 0): ")
                 cutoff = -1
                 try:
                     cutoff = int(s)
                 except ValueError:
                     pass
                 if cutoff <= 0:
-                    print("NONSENSE! nothing will be changed!")
+                    rc_FAIL("NONSENSE! nothing will be changed!")
                 else:
                     # removing
                     d = np.nan_to_num(self._ds) > 0.0
@@ -136,36 +138,38 @@ class Dataset:
                                 _ = self._customers.pop(si)
                                 self._axis_c.remove(si)
                                 cnt += 1
-                    print("Totally", np.sum(l), "items removed.")
+                    rc_result("Totally " + str(np.sum(l)) + " items removed.")
                     self._num_data = np.sum(np.nan_to_num(self._ds) > 0.0)
             elif opt == 7:
                 l = len(_p_wl)
-                print("Whitelist for products has", l, "items:")
+                rc_result("Whitelist for products has " + str(l) + " items:")
                 for i in _p_wl:
                     print("  " + self._products[i] + "[" + i + "]")
                 l = len(_c_wl)
-                print("Whitelist for customers has", l, "items:")
+                rc_result("Whitelist for customers has " + str(l) + " items:")
                 for i in _c_wl:
                     print("  " + self._customers[i] + "[" + i + "]")
             elif opt == 8:
                 _p_wl = []
+                rc_result("Whitelist of products cleared.")
             else:
                 _c_wl = []
+                rc_result("Whitelist of customers cleared.")
         # end of outer while loop
         return
 
     def browse(self):
         axis, coords, zs = None, None, None
         while True:
-            axis = input("Enter 'P' for browsing by products, or 'C' for browsing by customers: ").strip()[0].upper()
+            axis = rc_input("Enter 'P' for browsing by products, or 'C' for browsing by customers: ")[0].upper()
             if axis == 'P' or axis == 'C':
                 break
         while True:
-            coords = input("Enter ids to browse, separating by <spaces>: ").strip().split()
+            coords = rc_input("Enter ids to browse, separating by <spaces>: ").split()
             if len(coords) > 0:
                 break
         while True:
-            zs = input("Show zeros? (Y/N) ").strip()[0].upper()
+            zs = rc_input("Show zeros? (Y/N) ")[0].upper()
             if (zs == 'Y' or zs == 'N'):
                 break
 
@@ -173,9 +177,9 @@ class Dataset:
             for pid in coords:
                 spid = "0" * (8 - len(pid[:8])) + pid[:8]
                 if spid not in self._products:
-                    print("Product id:", spid, ", not exists.")
+                    rc_fail("Product id: " + spid + " not exists.")
                     continue
-                print("Product id:", spid, ", name:", self._products[spid], "weekly average sales:")
+                rc_result("Product id: " + spid + ", name: " + self._products[spid] + " weekly average sales:")
                 x = self._axis_p.index(spid)
                 dx = self._ds[x, :]
                 for i in range(len(dx)):
@@ -183,14 +187,14 @@ class Dataset:
                         continue
                     c = "%9.4f by " % dx[i] + self._customers[self._axis_c[i]] + "[" + self._axis_c[i] + "]"
                     print(c)
-                print("This product has been saled by", np.sum(dx > 0.0), "different customers")
+                rc_state("This product has been saled by " + str(np.sum(dx > 0.0)) + " different customers")
         else:
             for cid in coords:
                 scid = "0" * (9 - len(cid[:9])) + cid[:9]
                 if scid not in self._customers:
-                    print("Customer id:", scid, ", not exists.")
+                    rc_fail("Customer id: " + scid + " not exists.")
                     continue
-                print("Customer id:", scid, ", name:", self._customers[scid] + " weekly average sales:")
+                rc_result("Customer id: " + scid + ", name: " + self._customers[scid] + " weekly average sales:")
                 x = self._axis_c.index(scid)
                 dx = self._ds[:, x]
                 for i in range(len(dx)):
@@ -198,7 +202,7 @@ class Dataset:
                         continue
                     p = "%9.4f of " % dx[i] + self._products[self._axis_p[i]] + "[" + self._axis_p[i] + "]"
                     print(p)
-                print("This customer has saled", np.sum(dx > 0.0), "kinds of products")
+                rc_state("This customer has saled " + str(np.sum(dx > 0.0)) + " kinds of products")
         return
 
     def plot(self):
@@ -250,7 +254,7 @@ class Dataset:
             p, c = {}, {}
             r = []
             ds = None
-            print("Loading sales records...", flush=True)
+            rc_state("Loading sales records...")
             for rec in f_csv:
                 dates.add(rec[7].strip())
                 p[rec[6].strip()] = rec[5].strip()
@@ -277,7 +281,7 @@ class Dataset:
             # self._products_to_predict = []
             px = sorted(p)
             pc = sorted(c)
-            print("Generating products-customers sales table...", flush=True)
+            rc_state("Generating products-customers sales table...")
             for rec in r:
                 self._ds[px.index(rec[0]), pc.index(rec[1])] += rec[2]
             # end for
@@ -287,7 +291,7 @@ class Dataset:
         else:
             # npz
             npz = np.load(fn + ".npz")
-            print("Loading from early saved dataset...", flush=True)
+            rc_state("Loading from early saved dataset...")
             # np.savez(fn, Prod=self._products, Cust=self._customers, Dates=self._dates, Ds=self._ds)
             self._name = fn
             self._products = npz["Mdata"][0]
