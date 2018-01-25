@@ -4,6 +4,7 @@
 
 import numpy as np
 import os
+import csv
 
 import rcds as rcd
 import rcmodel as rcm
@@ -12,16 +13,17 @@ from rcio import *
 # Global data
 dataset = None
 model = None
+g_mask = None       # {customer_1 : [product, ..., product], ..., customer_m : [product, ..., product]}
 
 ## Utilities
 def __create_menu():
     global dataset
     menu = []
     if dataset is None:
-        if model is None:
-            menu.append(MENUITEMS[0])
-            menu.append(MENUITEMS[1])
-            pass
+        menu.append(MENUITEMS[0])
+        menu.append(MENUITEMS[1])
+        menu.append(MENUITEMS[7])
+        menu.append(MENUITEMS[8])
     else:
         if model is None:
             menu.append(MENUITEMS[0])
@@ -29,9 +31,10 @@ def __create_menu():
             menu.append(MENUITEMS[4])
             menu.append(MENUITEMS[5])
             menu.append(MENUITEMS[6])
+            menu.append(MENUITEMS[7])
+            menu.append(MENUITEMS[8])
             menu.append(MENUITEMS[1])
             menu.append(MENUITEMS[2])
-            pass
         else:
             menu.append(MENUITEMS[0])
             menu.append(MENUITEMS[3])
@@ -40,6 +43,11 @@ def __create_menu():
             menu.append(MENUITEMS[1])
             menu.append(MENUITEMS[2])
             menu.append(MENUITEMS[7])
+            menu.append(MENUITEMS[8])
+            menu.append(MENUITEMS[9])
+            menu.append(MENUITEMS[10])
+            menu.append(MENUITEMS[11])
+            menu.append(MENUITEMS[12])
 
     menu.append(("Quit.", None))
 
@@ -110,20 +118,104 @@ def create_model():
     global model
     rc_header("You can try a new model with hyperparameters from another early saved model.")
     ref = rc_input("Enter the ref-model name or nothing to create a new defalut model: ")
-    if ref != '' and not os.path.exists(ref + ".mat"):
+    if ref != '' and not os.path.exists(ref + ".npz"):
         rc_fail("Where is this funny '" + ref + "' model? But don't worry, I'll create a default one for you.")
         ref = ""
     model = rcm.Model(ref)
+    # TODO: Feed dataset and mask. If no mask, send a warning.
     rc_result("Done! Let's rock!")
     return
 
+## In a saved model: hyperparameters (num_features, algorithm, learning_rate, L2)
 def load_model():
     global dataset
     global model
     pass
     return
 
+def load_mask():
+    global dataset
+    global model
+    pass
+    return
+
 def generate_mask():
+    global g_mask
+    while True:
+        fn = rc_input("Enter the filename of classes-products table (without .csv): ").strip() + ".csv"
+        if os.path.exists(fn):
+            break
+        pass
+    f = open(fn)
+    f_csv = csv.reader(f)
+    # 0:, 1:class, 2:productsid, 3:[X], 4:[X], 5:[X], 6:mask, 7:[X]
+    headers = next(f_csv)
+    cls_mask = {}
+    for rec in f_csv:
+        try:
+            m = int(rec[6].strip())
+        except ValueError:
+            m = 0
+        if m == 0:
+            c = rec[1].strip()
+            p = rec[2].strip()
+            if c in cls_mask:
+                cls_mask[c].append(p)
+            else:
+                cls_mask[c] = [p]
+            pass
+        # end if
+        pass
+    # end for
+    f.close()
+
+    while True:
+        fn = rc_input("Enter the filename of customers-classes table (without .csv): ").strip() + ".csv"
+        if os.path.exists(fn):
+            break
+        pass
+    f = open(fn)
+    f_csv = csv.reader(f)
+    # 0:, 1:customersid, 2:customerno, 3:enterprise, 4:dicname(class), 5:isdemocustomer
+    headers = next(f_csv)
+    g_mask = {}
+    for rec in f_csv:
+        p = rec[1].strip()      # customersid
+        c = rec[4].strip()      # class
+        if c in cls_mask:
+            g_mask[p] = cls_mask[c]
+        pass
+    # end for
+    f.close()
+
+    # TODO: Create the training set in current model
+    return
+
+def save_mask():
+    global dataset
+    global model
+    pass
+    return
+
+def train_model():
+    global dataset
+    global model
+    pass
+    return
+
+def save_model():
+    global dataset
+    global model
+    pass
+    return
+
+def export_results():
+    global dataset
+    global model
+    pass
+    return
+
+def cluster_features():
     global dataset
     global model
     pass
@@ -132,12 +224,17 @@ def generate_mask():
 MENUITEMS = [
     ("Load a dataset.", load_dataset),
     ("Load a model.", load_model),
-    ("Try a new model.", create_model),
+    ("Create a model.", create_model),
     ("Browse dataset.", browse_dataset),
     ("Plot dataset.", plot_dataset),
     ("Filter dataset.", filter_dataset),
     ("Save dataset.", save_dataset),
-    ("Generate mask", generate_mask)
+    ("Load mask", load_mask),
+    ("Generate mask", generate_mask),
+    ("Train the model", train_model),
+    ("Save the model", save_model),
+    ("Cluster features", cluster_features),
+    ("Export results", export_results)
 ]
 
 ## Script start here
