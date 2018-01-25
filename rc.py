@@ -5,6 +5,7 @@
 import numpy as np
 import os
 import csv
+import json
 
 import rcds as rcd
 import rcmodel as rcm
@@ -31,8 +32,6 @@ def __create_menu():
             menu.append(MENUITEMS[4])
             menu.append(MENUITEMS[5])
             menu.append(MENUITEMS[6])
-            menu.append(MENUITEMS[7])
-            menu.append(MENUITEMS[8])
             menu.append(MENUITEMS[1])
             menu.append(MENUITEMS[2])
         else:
@@ -116,14 +115,20 @@ def save_dataset():
 def create_model():
     global dataset
     global model
+    global g_mask
+
     rc_header("You can try a new model with hyperparameters from another early saved model.")
     ref = rc_input("Enter the ref-model name or nothing to create a new defalut model: ")
     if ref != '' and not os.path.exists(ref + ".npz"):
         rc_fail("Where is this funny '" + ref + "' model? But don't worry, I'll create a default one for you.")
         ref = ""
     model = rcm.Model(ref)
-    # TODO: Feed dataset and mask. If no mask, send a warning.
-    rc_result("Done! Let's rock!")
+    # Feed dataset and mask. If no mask, send a warning.
+    if g_mask is None:
+        rc_warn("Model is created, but you need a mask to start training a model, load or generate one.")
+    else:
+        model.fed(dataset, g_mask)
+        rc_result("Done! Let's rock!")
     return
 
 ## In a saved model: hyperparameters (num_features, algorithm, learning_rate, L2)
@@ -136,10 +141,24 @@ def load_model():
 def load_mask():
     global dataset
     global model
-    pass
+    global g_mask
+    while True:
+        fn = rc_input("Tell me the name and I'll give the mask: ")
+        if fn != "" and os.path.exists(fn + ".json"):
+            break
+
+    fn += ".json"
+    f = open(fn, "r")
+    g_mask = json.load(f)
+    f.close()
+
+    model.fed(dataset, g_mask)
+    rc_result("Mask is put on the dataset, model ready. It's show time!")
     return
 
 def generate_mask():
+    global database
+    global model
     global g_mask
     while True:
         fn = rc_input("Enter the filename of classes-products table (without .csv): ").strip() + ".csv"
@@ -188,14 +207,38 @@ def generate_mask():
     # end for
     f.close()
 
-    # TODO: Create the training set in current model
+    # Save the mask
+    while True:
+        fn = rc_input("Global mask needs be saved immediately. Give me a filename: ")
+        if fn != "":
+            break
+
+    fn += ".json"
+    f = open(fn, "w")
+    json.dump(g_mask, f)
+    f.close()
+
+    # Create the training set in current model
+    model.fed(dataset, g_mask)
+    rc_result("Okay, the dataset along with this mask is fed into the model. Let's start!")
+
     return
 
-def save_mask():
-    global dataset
-    global model
-    pass
-    return
+# def save_mask():
+#     global dataset
+#     global model
+#     global g_mask
+#     while True:
+#         fn = rc_input("Give me a filename to save the mask: ")
+#         if fn != "":
+#             break
+# 
+#     fn += ".json"
+#     f = open(fn, "w")
+#     json.dump(g_mask, f)
+#     f.close()
+#     rc_result("Saved Okay!")
+#     return
 
 def train_model():
     global dataset
@@ -244,13 +287,17 @@ rc_header("Hello, here is the PRODUCT RECOMMENDATION SYSTEM for HUZHOU TOBACCO C
 # Main loop
 while True:
     if dataset is None:
-        rc_state("Dataset: None")
+        rc_warn("Dataset: None")
     else:
         rc_state("Dataset: " + dataset.states())
     if model is None:
-        rc_state("Model: None")
+        rc_warn("Model: None")
     else:
         rc_state("Model: " + model.states())
+    if g_mask is None:
+        rc_warn("Mask: None")
+    else:
+        rc_state("Mask: Okay")
 
     rc_highlight("Now you can do these things:")
     menu = __create_menu()
