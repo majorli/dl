@@ -143,7 +143,7 @@ def load_mask():
     global model
     global g_mask
     while True:
-        fn = rc_input("Tell me the name and I'll give the mask: ")
+        fn = rc_input("Tell me the name and I'll give you the mask: ")
         if fn != "" and os.path.exists(fn + ".json"):
             break
 
