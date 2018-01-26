@@ -19,6 +19,34 @@ class Dataset:
     def __init__(self):
         return
 
+    def generate_training_set(self, mask):
+        assert(self._ds is not None)
+
+        rc_state("Generating training set...")
+        Y = self._ds.copy()
+        nC = len(self._axis_c)
+        nons = []
+        for coord in range(nC):
+            cid = self._axis_c[coord]
+            if cid not in mask:
+                # remember him, we'll remove him later
+                nons.append(coord)
+                continue
+            msk = mask[cid]
+            nan_p = []
+            for pid in msk:
+                try:
+                    nan_p.append(self._axis_p.index(pid))
+                except ValueError:
+                    pass
+            # end for
+            Y[nan_p, coord] = np.nan
+        #end for
+        Y = np.delete(Y, nons, axis=1)
+        rc_result("Training set generated. Removed " + str(len(nons)) + " 'X-man' customers, found " + str(np.sum(np.isnan(Y))) + " data points to predict.")
+        return Y
+
+
     def filter(self):
         _p_wl = []                  # whitelist of products
         _c_wl = []                  # whitelist of customers

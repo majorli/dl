@@ -23,8 +23,6 @@ def __create_menu():
     if dataset is None:
         menu.append(MENUITEMS[0])
         menu.append(MENUITEMS[1])
-        menu.append(MENUITEMS[7])
-        menu.append(MENUITEMS[8])
     else:
         if model is None:
             menu.append(MENUITEMS[0])
@@ -56,6 +54,8 @@ PROMPT = "Tell me your choice:> "
 
 def load_dataset():
     global dataset
+    global model
+    global g_mask
     y = rc_warn_in("Load dataset will overwrite current dataset, are you sure? (Y/N) ")[0].upper()
     if y != "Y":
         return
@@ -82,6 +82,9 @@ def load_dataset():
             rc_result("Okay! Dataset " + dataset._name + " is loaded.")
             den = round(dataset.density() * 100, 2)
             rc_result("The data density is " + str(den) + "%. You can filter some products or customers that have very small number of sales to make the data density bigger.")
+            if model is not None and g_mask is not None:
+                model.fed(dataset.generate_training_set(g_mask))
+                rc_result("Training set in the model is updated.")
         else:
             dataset = None
             rc_fail("This is not a valid dataset!")
@@ -127,7 +130,7 @@ def create_model():
     if g_mask is None:
         rc_warn("Model is created, but you need a mask to start training a model, load or generate one.")
     else:
-        model.fed(dataset, g_mask)
+        model.fed(dataset.generate_training_set(g_mask))
         rc_result("Done! Let's rock!")
     return
 
@@ -152,7 +155,7 @@ def load_mask():
     g_mask = json.load(f)
     f.close()
 
-    model.fed(dataset, g_mask)
+    model.fed(dataset.generate_training_set(g_mask))
     rc_result("Mask is put on the dataset, model ready. It's show time!")
     return
 
@@ -219,7 +222,7 @@ def generate_mask():
     f.close()
 
     # Create the training set in current model
-    model.fed(dataset, g_mask)
+    model.fed(dataset.generate_training_set(g_mask))
     rc_result("Okay, the dataset along with this mask is fed into the model. Let's start!")
 
     return
