@@ -55,9 +55,10 @@ def load_dataset():
     global dataset
     global model
     global g_mask
-    y = rc_warn_in("Load dataset will overwrite current dataset, are you sure? (Y/N) ")[0].upper()
-    if y != "Y":
-        return
+    if dataset is not None:
+        y = rc_warn_in("Load dataset will overwrite current dataset, are you sure? (Y/N) ")[0].upper()
+        if y != "Y":
+            return
 
     while True:
         y = rc_input("What kind of dataset do you want to load, (0) for raw records or (1) for saved dataset? ")[0]
@@ -65,20 +66,18 @@ def load_dataset():
             break
         else:
             rc_fail("WTF! Tell me just (0) for raw records or (1) for saved dataset? ")
-            pass
-        pass
     # end while
     
-    fn = rc_input("Tell me the database name (extname is not needed, I know them): ")
-    fullname = fn
     if y == "0":
-        fullname += ".csv"
+        fn = rc_input("Tell me the raw records csv filename (without ext '.csv'): ")
+        fullname = fn + ".csv"
     else:
-        fullname += ".npz"
+        fn = rc_input("What's the dataset name? ")
+        fullname = "ds_" + fn + ".npz"      # filename of dataset: 'ds_' + name + ".npz"
     if os.path.exists(fullname):
         dataset = rcd.Dataset()
         if dataset.load(fn, int(y)):
-            rc_result("Okay! Dataset " + dataset._name + " is loaded.")
+            rc_result("Okay! Dataset '" + fn + "' is loaded.")
             den = round(dataset.density() * 100, 2)
             rc_result("The data density is " + str(den) + "%. You can filter some products or customers that have very small number of sales to make the data density bigger.")
             if model is not None and g_mask is not None:
@@ -109,7 +108,7 @@ def filter_dataset():
 
 def save_dataset():
     global dataset
-    fn = rc_input("Enter a filename: ")
+    fn = rc_input("Enter the dataset name: ")
     dataset.save(fn)
     rc_result("Saved Okay!")
     return
@@ -121,7 +120,7 @@ def create_model():
 
     rc_header("You can try a new model with hyperparameters from another early saved model.")
     ref = rc_input("Enter the ref-model name or nothing to create a new defalut model: ")
-    if ref != '' and not os.path.exists(ref + ".npz"):
+    if ref != "" and not os.path.exists("model_" + ref + ".npz"):
         rc_fail("Where is this funny '" + ref + "' model? But don't worry, I'll create a default one for you.")
         ref = ""
     model = rcm.Model(ref)
@@ -145,7 +144,7 @@ def load_model():
 
     while True:
         y = rc_input("Tell me the name of the model you want to load: ")
-        if os.path.exists(y + ".npz"):
+        if os.path.exists("model_" + y + ".npz"):
             break
         rc_warn("Where is this funny '" + y + "' model?")
 
@@ -168,10 +167,10 @@ def load_mask():
 
     while True:
         fn = rc_input("Tell me the name and I'll give you the mask: ")
-        if fn != "" and os.path.exists(fn + ".json"):
+        if os.path.exists("mask_" + fn + ".json"):
             break
 
-    fn += ".json"
+    fn = "mask_" + fn + ".json"
     f = open(fn, "r")
     g_mask = json.load(f)
     f.close()
@@ -240,11 +239,11 @@ def generate_mask():
 
     # Save the mask
     while True:
-        fn = rc_input("Global mask needs be saved immediately. Give me a filename: ")
+        fn = rc_input("Global mask needs be saved immediately. Give me a name: ")
         if fn != "":
             break
 
-    fn += ".json"
+    fn = "mask_" + fn + ".json"
     f = open(fn, "w")
     json.dump(g_mask, f)
     f.close()
@@ -276,21 +275,21 @@ def run_model():
             model.run()
     return
 
-def save_model():
-    global dataset
-    global model
-    if model is None:
-        rc_fail("You should first have a model, man!")
-        return
-
-    while True:
-        fn = rc_highlight_in("Enter the name of this model: ")
-        if len(fn) > 0:
-            break
-
-    model.save(fn)
-    rc_result("Save as '" + fn + "', Okay.")
-    return
+#def save_model():
+#    global dataset
+#    global model
+#    if model is None:
+#        rc_fail("You should first have a model, man!")
+#        return
+#
+#    while True:
+#        fn = rc_highlight_in("Enter the name of this model: ")
+#        if fn != "":
+#            break
+#
+#    model.save(fn)
+#    rc_result("Save as '" + fn + "', Okay.")
+#    return
 
 MENUITEMS = [
     ("Load a dataset.", load_dataset),
@@ -303,7 +302,7 @@ MENUITEMS = [
     ("Load mask", load_mask),
     ("Generate mask", generate_mask),
     ("Run the model", run_model),
-    ("Feed current dataset", feed_model)
+    ("Feed the model", feed_model)
 ]
 
 ## Script start here

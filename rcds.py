@@ -256,9 +256,9 @@ class Dataset:
         return
 
     def save(self, fn):
-        np.savez(fn, Mdata=[self._products, self._customers, self._dates], Ds=self._ds)
+        np.savez("ds_" + fn, Mdata=[self._products, self._customers, self._dates], Ds=self._ds)
 
-        with open(fn + ".csv", "w", newline="") as f:
+        with open("ds_" + fn + ".csv", "w", newline="") as f:
             f_csv = csv.writer(f)
             f_csv.writerow([" ", " ", " "] + self._axis_p)
             f_csv.writerow([" ", " ", " "] + [self._products[i] for i in self._axis_p])
@@ -329,9 +329,9 @@ class Dataset:
             return True
         else:
             # npz
-            npz = np.load(fn + ".npz")
+            npz = np.load("ds_" + fn + ".npz")
             rc_state("Loading from early saved dataset...")
-            # np.savez(fn, Prod=self._products, Cust=self._customers, Dates=self._dates, Ds=self._ds)
+            # np.savez("ds_" + fn, Mdata=[self._products, self._customers, self._dates], Ds=self._ds)
             self._name = fn
             self._products = npz["Mdata"][0]
             self._customers = npz["Mdata"][1]

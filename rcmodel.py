@@ -45,7 +45,7 @@ class Model:
             self._L2 = 0.0
         else:
             # load from a reference model early saved
-            npz = np.load(ref + ".npz")
+            npz = np.load("model_" + ref + ".npz")
             self._num_features = int(npz["nf"])
             self._algo = str(npz["algo"])
             self._learning_rate = float(npz["lr"])
@@ -161,7 +161,7 @@ class Model:
                 # save model
                 while True:
                     y = rc_highlight_in("Enter the name of this model: ")
-                    if len(y) > 0:
+                    if y != "":
                         break
                 self.save(y)
                 rc_result("Saved Okay as '" + y + "'.")
@@ -176,12 +176,12 @@ class Model:
         return
 
     def save(self, fn):
-        np.savez(fn, Y=self._Y, axisp=self._axis_p, axisc=self._axis_c, st=self._steps_trained, nf=self._num_features, X=self._X, Theta=self._Theta, algo=self._algo, lr=self._learning_rate, L2=self._L2)
+        np.savez("model_" + fn, Y=self._Y, axisp=self._axis_p, axisc=self._axis_c, st=self._steps_trained, nf=self._num_features, X=self._X, Theta=self._Theta, algo=self._algo, lr=self._learning_rate, L2=self._L2)
         return
 
     def load(self, fn):
         rc_state("Loading model " + fn)
-        npz = np.load(fn + ".npz")
+        npz = np.load("model_" + fn + ".npz")
         if npz["Y"].shape == ():
             self._Y = None
         else:
