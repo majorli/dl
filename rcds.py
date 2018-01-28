@@ -26,11 +26,13 @@ class Dataset:
         Y = self._ds.copy()
         nC = len(self._axis_c)
         nons = []
+        nonsid = []
         for coord in range(nC):
             cid = self._axis_c[coord]
             if cid not in mask:
                 # remember him, we'll remove him later
                 nons.append(coord)
+                nonsid.append(cid)
                 continue
             msk = mask[cid]
             nan_p = []
@@ -43,8 +45,17 @@ class Dataset:
             Y[nan_p, coord] = np.nan
         #end for
         Y = np.delete(Y, nons, axis=1)
+        P = self._axis_p.copy()
+        C = self._axis_c.copy()
+        for cid in nonsid:
+            C.remove(cid)
+        ts = {
+                "Y" : Y,
+                "P" : P,
+                "C" : C
+                }
         rc_result("Training set generated. Removed " + str(len(nons)) + " 'X-man' customers, found " + str(np.sum(np.isnan(Y))) + " data points to predict.")
-        return Y
+        return ts
 
 
     def filter(self):

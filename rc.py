@@ -36,15 +36,14 @@ def __create_menu():
             menu.append(MENUITEMS[0])
             menu.append(MENUITEMS[3])
             menu.append(MENUITEMS[4])
+            menu.append(MENUITEMS[5])
             menu.append(MENUITEMS[6])
             menu.append(MENUITEMS[1])
             menu.append(MENUITEMS[2])
             menu.append(MENUITEMS[7])
             menu.append(MENUITEMS[8])
-            menu.append(MENUITEMS[9])
             menu.append(MENUITEMS[10])
-            menu.append(MENUITEMS[11])
-            menu.append(MENUITEMS[12])
+            menu.append(MENUITEMS[9])
 
     menu.append(("Quit.", None))
 
@@ -134,17 +133,39 @@ def create_model():
         rc_result("Done! Let's rock!")
     return
 
-## In a saved model: hyperparameters (num_features, algorithm, learning_rate, L2)
 def load_model():
     global dataset
     global model
-    pass
+    global g_mask
+
+    if model is not None:
+        y = rc_warn_in("Load a new model will overwrite current model. Is it okay (Y/N)? ").upper()
+        if y != "Y":
+            return
+
+    while True:
+        y = rc_input("Tell me the name of the model you want to load: ")
+        if os.path.exists(y + ".npz"):
+            break
+        rc_warn("Where is this funny '" + y + "' model?")
+
+    if model is None:
+        model = rcm.Model("")
+    model.load(y)
+    rc_result("Model loaded successfully")
     return
 
 def load_mask():
     global dataset
     global model
     global g_mask
+    if dataset is None:
+        rc_fail("You should first have a dataset, man!")
+        return
+    if model is None:
+        rc_fail("You should first have a model, man!")
+        return
+
     while True:
         fn = rc_input("Tell me the name and I'll give you the mask: ")
         if fn != "" and os.path.exists(fn + ".json"):
@@ -163,6 +184,13 @@ def generate_mask():
     global database
     global model
     global g_mask
+    if dataset is None:
+        rc_fail("You should first have a dataset, man!")
+        return
+    if model is None:
+        rc_fail("You should first have a model, man!")
+        return
+
     while True:
         fn = rc_input("Enter the filename of classes-products table (without .csv): ").strip() + ".csv"
         if os.path.exists(fn):
@@ -224,47 +252,44 @@ def generate_mask():
     # Create the training set in current model
     model.fed(dataset.generate_training_set(g_mask))
     rc_result("Okay, the dataset along with this mask is fed into the model. Let's start!")
-
     return
 
-# def save_mask():
-#     global dataset
-#     global model
-#     global g_mask
-#     while True:
-#         fn = rc_input("Give me a filename to save the mask: ")
-#         if fn != "":
-#             break
-# 
-#     fn += ".json"
-#     f = open(fn, "w")
-#     json.dump(g_mask, f)
-#     f.close()
-#     rc_result("Saved Okay!")
-#     return
-
-def train_model():
+def feed_model():
     global dataset
     global model
-    pass
+    global g_mask
+    if model is None or dataset is None or g_mask is None:
+        rc_fail("To feed a model, you should first have a model, a dataset, and a mask!")
+        return
+    model.fed(dataset.generate_training_set(g_mask))
+    rc_result("Feed model by current dataset and mask, Okay.")
+    return
+
+def run_model():
+    global model
+    if model is None:
+        rc_fail("You should first have a model, man!")
+    else:
+        if model.not_ready():
+            rc_fail("You should first feed training set into the model.")
+        else:
+            model.run()
     return
 
 def save_model():
     global dataset
     global model
-    pass
-    return
+    if model is None:
+        rc_fail("You should first have a model, man!")
+        return
 
-def export_results():
-    global dataset
-    global model
-    pass
-    return
+    while True:
+        fn = rc_highlight_in("Enter the name of this model: ")
+        if len(fn) > 0:
+            break
 
-def cluster_features():
-    global dataset
-    global model
-    pass
+    model.save(fn)
+    rc_result("Save as '" + fn + "', Okay.")
     return
 
 MENUITEMS = [
@@ -277,10 +302,8 @@ MENUITEMS = [
     ("Save dataset.", save_dataset),
     ("Load mask", load_mask),
     ("Generate mask", generate_mask),
-    ("Train the model", train_model),
-    ("Save the model", save_model),
-    ("Cluster features", cluster_features),
-    ("Export results", export_results)
+    ("Run the model", run_model),
+    ("Feed current dataset", feed_model)
 ]
 
 ## Script start here
@@ -309,17 +332,18 @@ while True:
         pass
     print("0: " + menu[-1][0])
     cmd = rc_highlight_in(PROMPT)
-    if len(cmd) > 0 and cmd[0].isdigit():
-        c = int(cmd[0])
+    try:
+        c = int(cmd)
         if c == 0:
             break;                      # break the main loop 'while True'
         if c < len(menu):
             menu[c-1][1]()              # call the defined function
             continue
+    except ValueError:
+        pass
+    print(cmd)
     rc_fail("Are you kidding? Choose something from what I showed you.")
-    pass
 # end while
-
 
 # Script end here
 
