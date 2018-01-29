@@ -108,9 +108,12 @@ def filter_dataset():
 
 def save_dataset():
     global dataset
-    fn = rc_input("Enter the dataset name: ")
-    dataset.save(fn)
-    rc_result("Saved Okay!")
+    fn = rc_input("Enter the dataset name, nothing to quit saving: ")
+    if fn != "":
+        dataset.save(fn)
+        rc_result("Saved Okay!")
+    else:
+        rc_warn("Not saved.")
     return
 
 def create_model():
@@ -138,7 +141,7 @@ def load_model():
     global g_mask
 
     if model is not None:
-        y = rc_warn_in("Load a new model will overwrite current model. Is it okay (Y/N)? ").upper()
+        y = rc_warn_in("Load a new model will overwrite current model. Is it okay (Y/N)? ")[0].upper()
         if y != "Y":
             return
 
@@ -266,13 +269,14 @@ def feed_model():
 
 def run_model():
     global model
+    global dataset
     if model is None:
         rc_fail("You should first have a model, man!")
     else:
         if model.not_ready():
             rc_fail("You should first feed training set into the model.")
         else:
-            model.run()
+            model.run(dataset._products, dataset._customers)
     return
 
 #def save_model():

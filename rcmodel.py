@@ -4,8 +4,17 @@ from sklearn.cluster import KMeans
 import warnings
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import csv
+import json
 
 from rcio import *
+
+def _results(X, Theta, Y_mean, relu=True):
+    R = np.dot(X, Theta.T) + Y_mean
+    if relu:
+        R = np.maximum(R, 0.0)
+    R = R + 0.0
+    return R
 
 class Model:
     """model"""
@@ -26,6 +35,7 @@ class Model:
 
     _X = None
     _Theta = None
+    _eva = None
 
     def __init__(self, ref):
         rc_state("Model creating...")
@@ -39,10 +49,10 @@ class Model:
         self._test_prop = 0.0
         if ref == "":
             # using default hyperparameters
-            self._num_features = 100
-            self._algo = "adam"
-            self._learning_rate = 0.01
-            self._L2 = 0.0
+            self._num_features = 200
+            self._algo = "Adam"
+            self._learning_rate = 0.001
+            self._L2 = 0.1
         else:
             # load from a reference model early saved
             npz = np.load("model_" + ref + ".npz")
@@ -55,9 +65,10 @@ class Model:
         self._steps_trained = 0
         self._X = None
         self._Theta = None
+        self._eva = None
         return
 
-    def run(self):
+    def run(self, _products, _customers):
         while True:
             rc_state(self.states())
             rc_highlight("With a running model, you can do these thing:")
@@ -66,8 +77,8 @@ class Model:
             print("  3. Change L2 regularization parameters.")
             print("  4. Change number of features.")
             print("  5. Optimize the model.")
-            print("  6. Plot result.")
-            print("  7. Export results.")
+            print("  6. Plot results.")
+            print("  7. Look up results.")
             print("  8. Cluster products and customers.")
             print("  9. Save model.")
             opt = 0
@@ -81,10 +92,10 @@ class Model:
                 break
             if opt == 1:
                 # change algorithm
-                if self._algo == "adam":
+                if self._algo == "Adam":
                     self._algo = "G.D."
                 else:
-                    self._algo = "adam"
+                    self._algo = "Adam"
                 # set steps trained to zero, must optimize from the begin and can't do 6, 7, 8 now
                 self._steps_trained = 0
                 rc_result("Model algorithm is changed to " + self._algo + " and model has reset.")
@@ -134,9 +145,92 @@ class Model:
                     rc_warn("Incorrect value, nothing changed.")
             elif opt == 5:
                 # optimize
+                if self._steps_trained > 0:
+                    y = rc_warn_in("This model has been trained for " + str(self._steps_trained) + " steps. Would you like to reset it and learn from the very beginning? Choose NO to continue learning (Y/N)? ")[0].upper()
+                    if y == 'Y':
+                        self._steps_trained = 0
+                        self._X = None
+                        self._Theta = None
+
+                y = rc_highlight_in("How many steps would you like to learn (default: 1000)? ")
+                try:
+                    num_steps = int(y)
+                    if num_steps <= 0:
+                        num_steps = 1000
+                except ValueError:
+                    num_steps = 1000
+
+                y = rc_highlight_in("Would you like to keep negative results (Y/N)? ")[0].upper()
+                relu = y != 'Y'             # whether to apply relu on the prediction or not
                 rc_state("Optimizing...")
-                self.optimize()
-                rc_state("Completed!")
+                self.optimize(num_steps)
+                rc_state("Predicting...")
+                R = _results(self._X, self._Theta, self._Y_mean, relu)
+                rc_state("Evaluating...")
+                # print bias, variance, precisions
+                m_train = (~ self._pred_mask) & (~ self._test_mask)
+                pred_train = R[m_train]
+                real_train = self._Y[m_train]
+                pred_test = R[self._test_mask]
+                real_test = self._Y[self._test_mask]
+                error_train = np.abs(pred_train - real_train)
+                TE_train = np.sum(error_train)
+                AE_train = TE_train / real_train.shape[0]
+                WE_train = np.max(error_train)
+                BE_train = np.min(error_train)
+                Bias = TE_train / np.sum(np.abs(real_train))
+                error_test = np.abs(pred_test - real_test)
+                TE_test = np.sum(error_test)
+                AE_test = TE_test / real_test.shape[0]
+                WE_test = np.max(error_test)
+                BE_test = np.min(error_test)
+                Variance = TE_test / np.sum(np.abs(real_test))
+                self._eva = {
+                        "TE_train" : TE_train,
+                        "AE_train" : AE_train,
+                        "BE_train" : BE_train,
+                        "WE_train" : WE_train,
+                        "Bias" : Bias,
+                        "TE_test" : TE_test,
+                        "AE_test" : AE_test,
+                        "BE_test" : BE_test,
+                        "WE_test" : WE_test,
+                        "Variance" : Variance,
+                        }
+                rc_result("1. Evaluating by " + str(pred_train.shape[0]) + " training examples:")
+                rc_result("   TOTAL ERROR = " + str(TE_train))
+                rc_result("   AVERAGE ERROR = " + str(AE_train))
+                rc_result("   BEST ERROR = " + str(BE_train))
+                rc_result("   WORST ERROR = " + str(WE_train))
+                rc_warn("   BIAS = " + str(Bias))
+                rc_result("2. Evaluating by " + str(pred_test.shape[0]) + " test examples:")
+                rc_result("   TOTAL ERROR = " + str(TE_test))
+                rc_result("   AVERAGE ERROR = " + str(AE_test))
+                rc_result("   BEST ERROR = " + str(BE_test))
+                rc_result("   WORST ERROR = " + str(WE_test))
+                rc_warn("   VARIANCE = " + str(Variance))
+                # export prediction results and precisions
+                y = rc_highlight_in("Exporting results, give me a filename (without extname), nothing to not export: ")
+                if y != "":
+                    with open("results_" + y + ".csv", "w", newline="") as f:
+                        f_csv = csv.writer(f)
+                        f_csv.writerow([" ", " ", " "] + self._axis_p)
+                        f_csv.writerow([" ", " ", " "] + [_products[i] for i in self._axis_p])
+                        f_csv.writerow([" ", " ", " "] + list(np.sum(R > 0.0, axis=1)))
+                        count_by_cust = list(np.sum(R > 0.0, axis=0))
+                        nc = len(self._axis_c)
+                        for i in range(nc):
+                            c = self._axis_c[i]
+                            row = [c, _customers[c], count_by_cust[i]] + list(R[:, i])
+                            f_csv.writerow(row)
+                            pass
+                        pass
+                    f_json = open("results_eva_" + y + ".json", "w")
+                    json.dump(self._eva, f_json)
+                    f_json.close()
+                    rc_state("Results exported.")
+                else:
+                    rc_warn("Results not exported.")
             elif opt == 6:
                 # plot result
                 fig = plt.figure()
@@ -146,13 +240,27 @@ class Model:
                 X, Y = np.meshgrid(X, Y)
                 Z = self._Y[X, Y]
                 surf = ax.plot_surface(X, Y, Z)
-                ## TODO: plot scatters of results in masks, c='tab:orange' and 'm'
-                ## s = ax.scatter(x, y, z, c='m', marker='.')
+                ## plot prediction
+                if self._X is not None and self._Theta is not None:
+                    R = _results(self._X, self._Theta, self._Y_mean, True)
+                    x_test, y_test, z_test, x_pred, y_pred, z_pred = [], [], [], [], [], []
+                    for i in range(R.shape[0]):
+                        for j in range(R.shape[1]):
+                            if self._test_mask[i, j]:
+                                x_test.append(i)
+                                y_test.append(j)
+                                z_test.append(R[i, j])
+                            if self._pred_mask[i, j]:
+                                x_pred.append(i)
+                                y_pred.append(j)
+                                z_pred.append(R[i, j])
+                    scat_test = ax.scatter(x_test, y_test, z_test, c="tab:orange", marker=".")
+                    scat_pred = ax.scatter(x_pred, y_pred, z_pred, c="m", marker=".")
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     plt.show()
             elif opt == 7:
-                # export result
+                # look up result
                 pass
             elif opt == 8:
                 # cluster
@@ -171,8 +279,62 @@ class Model:
         # end while
         return
 
-    def optimize(self):
-        # TODO optimize
+    def optimize(self, num_steps):
+        # get dataset shape
+        (num_products, num_customers) = self._Y.shape
+
+        # constant: L2 regularization parameter
+        l2 = tf.constant(self._L2)
+
+        # placeholder: dataset to learn
+        y = tf.placeholder(tf.float32, shape=[num_products, num_customers])
+
+        # Variables: feature vectors for all customers (theta) and all products (x)
+        if self._X is None or self._Theta is None or self._steps_trained == 0:
+            x = tf.Variable(tf.random_normal([num_products, self._num_features]))
+            theta = tf.Variable(tf.random_normal([num_customers, self._num_features]))
+        else:
+            x = tf.Variable(self._X, dtype=tf.float32)
+            theta = tf.Variable(self._Theta, dtype=tf.float32)
+
+        # computation graph
+        pred = tf.matmul(x, tf.transpose(theta))
+        diff = pred - y
+        d = tf.where(tf.is_nan(diff), tf.zeros_like(diff), diff)
+
+        # cost function
+        cost = (tf.reduce_sum(tf.square(d)) + l2 * (tf.reduce_sum(tf.square(x)) + tf.reduce_sum(tf.square(theta)))) / 2.0
+
+        # optimizer
+        if self._algo == "Adam":
+            optimizer = tf.train.AdamOptimizer(learning_rate=self._learning_rate).minimize(cost)
+        else:
+            optimizer = tf.train.GradientDescentOptimizer(self._learning_rate).minimize(cost)
+
+        # variable initialzer
+        init = tf.global_variables_initializer()
+
+        # learn
+        sess = tf.Session()
+        sess.run(init)
+
+        Ynorm = self._Y_norm.copy()
+        if self._steps_trained == 0:
+            self._test_mask = ~ self._pred_mask & (np.random.rand(num_products, num_customers) < 0.01)
+        Ynorm[self._test_mask] = np.nan
+
+        for t in range(num_steps):
+            _, c = sess.run([optimizer, cost], feed_dict ={y:Ynorm})
+            if t % 100 == 0:
+                print("step: ", t, ", cost: ", c)
+
+        # result
+        self._X = sess.run(x)
+        self._Theta = sess.run(theta)
+        self._steps_trained += num_steps
+
+        sess.close()
+
         return
 
     def save(self, fn):
@@ -191,7 +353,7 @@ class Model:
                 warnings.simplefilter("ignore")
                 self._Y_mean = np.nan_to_num(np.nanmean(self._Y, axis=1, keepdims=True))
             self._Y_norm = self._Y - self._Y_mean
-            self._pred_mask = self._Y - self._Y
+            self._pred_mask = np.isnan(self._Y)     # self._Y - self._Y
             self._test_mask = np.zeros(self._Y.shape)
             self._axis_p = list(npz["axisp"])
             self._axis_c = list(npz["axisc"])
@@ -229,7 +391,7 @@ class Model:
             warnings.simplefilter("ignore")
             self._Y_mean = np.nan_to_num(np.nanmean(self._Y, axis=1, keepdims=True))
         self._Y_norm = self._Y - self._Y_mean
-        self._pred_mask = self._Y - self._Y
+        self._pred_mask = np.isnan(self._Y)     # self._Y - self._Y
         self._test_mask = None
 
         self._steps_traind = 0
@@ -252,7 +414,11 @@ class Model:
         s += str(self._num_features) + " features, learning_rate = "
         s += str(self._learning_rate) + ", L2 regularization = "
         s += str(self._L2) + ", "
-        s += str(self._steps_trained) + " steps trained."
+        s += str(self._steps_trained) + " steps trained, "
+        if self._eva is None:
+            s += "last results: None."
+        else:
+            s += "last results: Bias = " + str(self._eva["Bias"]) + ", Variance = " + str(self._eva["Variance"]) + "."
         return s
 
     def not_ready(self):
