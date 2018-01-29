@@ -251,18 +251,19 @@ class Model:
                 ## plot prediction
                 if self._X is not None and self._Theta is not None:
                     R = _results(self._X, self._Theta, self._Y_mean, True)
-                    x_test, y_test, z_test, x_pred, y_pred, z_pred = [], [], [], [], [], []
+                    # x_test, y_test, z_test, x_pred, y_pred, z_pred = [], [], [], [], [], []
+                    x_pred, y_pred, z_pred = [], [], []
                     for i in range(R.shape[0]):
                         for j in range(R.shape[1]):
-                            if self._test_mask[i, j]:
-                                x_test.append(i)
-                                y_test.append(j)
-                                z_test.append(R[i, j])
+#                            if self._test_mask[i, j]:
+#                                x_test.append(i)
+#                                y_test.append(j)
+#                                z_test.append(R[i, j])
                             if self._pred_mask[i, j]:
                                 x_pred.append(i)
                                 y_pred.append(j)
                                 z_pred.append(R[i, j])
-                    scat_test = ax.scatter(x_test, y_test, z_test, c="tab:orange", marker=".")
+#                    scat_test = ax.scatter(x_test, y_test, z_test, c="tab:orange", marker=".")
                     scat_pred = ax.scatter(x_pred, y_pred, z_pred, c="m", marker=".")
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -330,7 +331,7 @@ class Model:
 
         Ynorm = self._Y_norm.copy()
         if self._steps_trained == 0:
-            self._test_mask = ~ self._pred_mask & (np.random.rand(num_products, num_customers) < 0.01)
+            self._test_mask = ~ self._pred_mask & (np.random.rand(num_products, num_customers) < 0.003)
         Ynorm[self._test_mask] = np.nan
 
         for t in range(num_steps):
