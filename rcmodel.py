@@ -115,11 +115,11 @@ class Model:
                     rc_warn("Incorrect value, nothing changed.")
             elif opt == 3:
                 # change L2
-                y = rc_highlight_in("Enter new L2 parameter, remember it's a positive real number: ")
+                y = rc_highlight_in("Enter new L2 parameter, remember it's a non-negative real number: ")
                 try:
                     l = float(y)
-                    if l <= 0.0:
-                        rc_fail("What a silly number you have entered! L2 parameter must be positive.")
+                    if l < 0.0:
+                        rc_fail("What a silly number you have entered! L2 parameter must be zero or positive.")
                         rc_warn("Incorrect value, nothing changed.")
                     else:
                         self._L2 = l
@@ -146,7 +146,11 @@ class Model:
             elif opt == 5:
                 # optimize
                 if self._steps_trained > 0:
-                    y = rc_warn_in("This model has been trained for " + str(self._steps_trained) + " steps. Would you like to reset it and learn from the very beginning? Choose NO to continue learning (Y/N)? ")[0].upper()
+                    while True:
+                        y = rc_warn_in("This model has been trained for " + str(self._steps_trained) + " steps. Would you like to reset it and learn from the very beginning? Choose NO to continue learning (Y/N)? ").upper()
+                        if y != "" and (y[0] == "Y" or y[0] == "N"):
+                            y = y[0]
+                            break
                     if y == 'Y':
                         self._steps_trained = 0
                         self._X = None
@@ -160,8 +164,12 @@ class Model:
                 except ValueError:
                     num_steps = 1000
 
-                y = rc_highlight_in("Would you like to keep negative results (Y/N)? ")[0].upper()
-                relu = y != 'Y'             # whether to apply relu on the prediction or not
+                while True:
+                    y = rc_highlight_in("Would you like to keep negative results (Y/N)? ").upper()
+                    if y != "" and (y[0] == "Y" or y[0] == "N"):
+                        y = y[0]
+                        break
+                relu = y == "N"             # whether to apply relu on the prediction or not
                 rc_state("Optimizing...")
                 self.optimize(num_steps)
                 rc_state("Predicting...")
@@ -261,9 +269,11 @@ class Model:
                     plt.show()
             elif opt == 7:
                 # look up result
+                # TODO
                 pass
             elif opt == 8:
                 # cluster
+                # TODO
                 pass
             elif opt == 9:
                 # save model

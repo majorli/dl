@@ -208,8 +208,9 @@ class Dataset:
             if len(coords) > 0:
                 break
         while True:
-            zs = rc_input("Show zeros? (Y/N) ")[0].upper()
-            if (zs == 'Y' or zs == 'N'):
+            zs = rc_input("Show zeros? (Y/N) ").upper()
+            if zs != "" and (zs[0] == 'Y' or zs[0] == 'N'):
+                zs = zs[0]
                 break
 
         if axis == "P":

@@ -56,8 +56,12 @@ def load_dataset():
     global model
     global g_mask
     if dataset is not None:
-        y = rc_warn_in("Load dataset will overwrite current dataset, are you sure? (Y/N) ")[0].upper()
-        if y != "Y":
+        while True:
+            y = rc_warn_in("Load dataset will overwrite current dataset, are you sure (Y/N)? ").upper()
+            if y != "" and (y[0] == "Y" or y[0] == "N"):
+                y = y[0]
+                break
+        if y == "N":
             return
 
     while True:
@@ -141,8 +145,12 @@ def load_model():
     global g_mask
 
     if model is not None:
-        y = rc_warn_in("Load a new model will overwrite current model. Is it okay (Y/N)? ")[0].upper()
-        if y != "Y":
+        while True:
+            y = rc_warn_in("Load a new model will overwrite current model. Is it okay (Y/N)? ").upper()
+            if y != "" and (y[0] == "Y" or y[0] == "N"):
+                y = y[0]
+                break
+        if y == "N":
             return
 
     while True:
