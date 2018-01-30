@@ -249,7 +249,7 @@ class Dataset:
         return
 
     def plot(self):
-        fig = plt.figure()
+        fig = plt.figure("Dataset")
         ax = fig.gca(projection="3d")
         X = np.arange(self._ds.shape[0])
         Y = np.arange(self._ds.shape[1])
