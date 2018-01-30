@@ -220,7 +220,7 @@ class Model:
                 # export prediction results and precisions
                 y = rc_highlight_in("Exporting results, give me a filename (without extname), nothing to not export: ")
                 if y != "":
-                    with open("results_" + y + ".csv", "w", newline="") as f:
+                    with open("results_tbl_" + y + ".csv", "w", newline="") as f:
                         f_csv = csv.writer(f)
                         f_csv.writerow([" ", " ", " "] + self._axis_p)
                         f_csv.writerow([" ", " ", " "] + [_products[i] for i in self._axis_p])
@@ -231,6 +231,25 @@ class Model:
                             c = self._axis_c[i]
                             row = [c, _customers[c], count_by_cust[i]] + list(R[:, i])
                             f_csv.writerow(row)
+                            pass
+                        pass
+                    with open("results_pre_" + y + ".csv", "w", newline="") as f:
+                        f_csv = csv.writer(f)
+                        f_csv.writerow(["ProductId", "Product", "CustomerSid", "Customer", "SalesPrediction"])
+                        mask_count = np.sum(self._pred_mask, axis=1)
+                        (nP, nC) = R.shape
+                        for i in range(nP):
+                            if mask_count[i] == 0:
+                                continue
+                            pid = self._axis_p[i]
+                            p = _products[pid]
+                            for j in range(nC):
+                                if self._pred_mask[i, j]:
+                                    cid = self._axis_c[j]
+                                    c = _customers[cid]
+                                    f_csv.writerow([pid, p, cid, c, R[i, j]])
+                                    pass
+                                pass
                             pass
                         pass
                     f_json = open("results_eva_" + y + ".json", "w")

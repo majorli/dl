@@ -42,7 +42,10 @@ class Dataset:
                 except ValueError:
                     pass
             # end for
-            Y[nan_p, coord] = np.nan
+            # Y[nan_p, coord] = np.nan  # totally set to nan
+            for coord_p in nan_p:
+                if Y[coord_p, coord] == 0:
+                    Y[coord_p, coord] = np.nan
         #end for
         Y = np.delete(Y, nons, axis=1)
         P = self._axis_p.copy()
