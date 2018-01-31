@@ -43,4 +43,3 @@ def rc_highlight(s):
 def rc_highlight_in(pmt):
     print(bcolors.BOLD + pmt + bcolors.ENDC, end="", flush=True)
     return input().strip()
-

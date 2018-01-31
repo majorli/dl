@@ -190,19 +190,11 @@ def load_mask():
     rc_result("Mask is put on the dataset, model ready. It's show time!")
     return
 
-def generate_mask():
-    global database
-    global model
+def _generate_one_round_mask():
     global g_mask
-    if dataset is None:
-        rc_fail("You should first have a dataset, man!")
-        return
-    if model is None:
-        rc_fail("You should first have a model, man!")
-        return
 
     while True:
-        fn = rc_input("Enter the filename of classes-products table (without .csv): ").strip() + ".csv"
+        fn = rc_input("Enter the filename of classes-products table (without .csv): ") + ".csv"
         if os.path.exists(fn):
             break
         pass
@@ -230,7 +222,7 @@ def generate_mask():
     f.close()
 
     while True:
-        fn = rc_input("Enter the filename of customers-classes table (without .csv): ").strip() + ".csv"
+        fn = rc_input("Enter the filename of customers-classes table (without .csv): ") + ".csv"
         if os.path.exists(fn):
             break
         pass
@@ -238,15 +230,41 @@ def generate_mask():
     f_csv = csv.reader(f)
     # 0:, 1:customersid, 2:customerno, 3:enterprise, 4:dicname(class), 5:isdemocustomer
     headers = next(f_csv)
-    g_mask = {}
+    if g_mask is None:
+        g_mask = {}
     for rec in f_csv:
         p = rec[1].strip()      # customersid
         c = rec[4].strip()      # class
         if c in cls_mask:
-            g_mask[p] = cls_mask[c]
-        pass
+            if p in g_mask:
+                g_mask[p] = [x for x in g_mask[p] if x in cls_mask[c]]  # intersection of original mask and current mask
+                if len(g_mask[p]) == 0:
+                    _ = g_mask.pop(p)
+            else:
+                g_mask[p] = cls_mask[c]         # no original mask, simply set to current mask
     # end for
     f.close()
+
+    return
+
+def generate_mask():
+    global database
+    global model
+    global g_mask
+    if dataset is None:
+        rc_fail("You should first have a dataset, man!")
+        return
+    if model is None:
+        rc_fail("You should first have a model, man!")
+        return
+
+    # generate round by round
+    g_mask = None
+    while True:
+        _generate_one_round_mask()
+        y = rc_highlight_in("Done. Say anything (e.g. 'y') to continue generating, or nothing to finish: ")
+        if y == "":
+            break
 
     # Save the mask
     while True:

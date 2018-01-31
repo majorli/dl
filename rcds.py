@@ -328,7 +328,19 @@ class Dataset:
             for rec in r:
                 self._ds[px.index(rec[0]), pc.index(rec[1])] += rec[2]
             # end for
-            self._ds = self._ds / len(dates) * 7
+            days = len(dates)
+            if days < 7:
+                rc_warn("Hey, you only gave me " + str(days) + " days' sale records. This dataset is hardly useful!")
+            else:
+                if days < 28:
+                    rc_warn(str(days) + " days' records, less than 4 weeks. Anyway, that's not such bad.")
+                if days % 7 != 0:
+                    rc_warn(str(days) + " days' records, not integral multiple of one week. But don't mind, everything is okay.")
+                    self._ds = self._ds * 7 / days
+                else:
+                    weeks = days // 7
+                    rc_state(str(days) + " days, i.e. " + str(weeks) + " weeks' records. Perfect dataset!")
+                    self._ds = self._ds / weeks
             self._num_data = np.sum(np.nan_to_num(self._ds) > 0.0)
             return True
         else:

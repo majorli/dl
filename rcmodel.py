@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, AffinityPropagation, MeanShift, estimate_bandwidth
 import warnings
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
@@ -68,6 +68,169 @@ class Model:
         self._Theta = None
         self._eva = None
         return
+
+    def _export_clusters(self, labels_p, labels_c, _products, _customers):
+
+        csvfn = rc_highlight_in("Give me a name to export the clustering results, nothing to quit exporting: ")
+        if csvfn == "":
+            return
+
+        n_p = len(np.unique(labels_p))
+        n_c = len(np.unique(labels_c))
+        cls = []
+        for i in range(len(labels_p)):
+            cl = labels_p[i]
+            sid = self._axis_p[i]
+            name = _products[sid]
+            cls.append([cl, sid, name])
+        cls.sort(key=lambda x: x[0])
+        with open("clusters_products_" + csvfn + "_" + str(n_p) + "_cls.csv", "w", newline="") as f:
+            f_csv = csv.writer(f)
+            f_csv.writerow(["Cluster", "ProductId", "ProductName"])
+            for it in cls:
+                f_csv.writerow(it)
+
+        cls = []
+        for i in range(len(labels_c)):
+            cl = labels_c[i]
+            sid = self._axis_c[i]
+            name = _customers[sid]
+            cls.append([cl, sid, name])
+        cls.sort(key=lambda x: x[0])
+        with open("clusters_customers_" + csvfn + "_" + str(n_c) + "_cls.csv", "w", newline="") as f:
+            f_csv = csv.writer(f)
+            f_csv.writerow(["Cluster", "CustomerSId", "CustomerName"])
+            for it in cls:
+                f_csv.writerow(it)
+
+        rc_result("Done! Clustering results exported.")
+        return
+
+    def _cluster_mean_shift(self):
+        print("Trying products clustering...", end="", flush=True)
+        ms_p = MeanShift(bandwidth=estimate_bandwidth(self._X)).fit(self._X)
+        print("Done.", ms_p.cluster_centers_.shape[0], "clusters found.")
+
+        print("Trying customers clustering...", end="", flush=True)
+        ms_c = MeanShift(bandwidth=estimate_bandwidth(self._Theta)).fit(self._Theta)
+        print("Done.", ms_c.cluster_centers_.shape[0], "clusters found.")
+
+        return ms_p.labels_, ms_c.labels_
+
+    def _cluster_affinity(self):
+        try:
+            pf_p = float(rc_highlight_in("Enter a real number <= 0.0 as the preference of products clustering: "))
+            if pf_p > 0.0:
+                rc_warn("Incorrect! Use default parameter.")
+                pf_p = None
+        except ValueError:
+            rc_warn("Incorrect! Use default parameter.")
+            pf_p = None
+
+        try:
+            pf_c = float(rc_highlight_in("Enter a real number <= 0.0 as the preference of customers clustering: "))
+            if pf_c > 0.0:
+                rc_warn("Incorrect! Use default parameter.")
+                pf_c = None
+        except ValueError:
+            rc_warn("Incorrect! Use default parameter.")
+            pf_c = None
+
+        print("Trying products clustering...", end="", flush=True)
+        if pf_p is None:
+            af_p = AffinityPropagation().fit(self._X)
+        else:
+            af_p = AffinityPropagation(preference=pf_p).fit(self._X)
+        print("Done.", af_p.cluster_centers_.shape[0], "clusters found.")
+        print("Trying customers clustering...", end="", flush=True)
+        if pf_c is None:
+            af_c = AffinityPropagation().fit(self._Theta)
+        else:
+            af_c = AffinityPropagation(preference=pf_c).fit(self._Theta)
+        print("Done.", af_c.cluster_centers_.shape[0], "clusters found.")
+
+        return af_p.labels_, af_c.labels_
+
+    def _cluster_kmeans(self):
+        max_nc_p = 20
+        max_nc_c = 20
+        try:
+            max_nc_p = int(rc_highlight_in("At most how many clusters do you think for products (Default: 20)? "))
+        except ValueError:
+            max_nc_p = 20
+        if max_nc_p >= self._Y.shape[0]:
+            rc_fail("Number of clusters must be less than number of products! Just take default value 20.")
+            max_nc_p = 20
+
+        try:
+            max_nc_c = int(rc_highlight_in("At most how many clusters do you think for customers (Default: 20)? "))
+        except ValueError:
+            max_nc_c = 20
+        if max_nc_c >= self._Y.shape[1]:
+            rc_fail("Number of clusters must be less than number of customers! Just take default value 20.")
+            max_nc_c = 20
+
+        n_p = []
+        n_c = []
+        dis_p = []
+        dis_c = []
+        lbl_p = []
+        lbl_c = []
+        for n in range(2, max_nc_p + 1):
+            print("Trying products for", n, "clusters...", end="", flush=True)
+            km = KMeans(n_clusters=n, n_init=10, max_iter=300, tol=1e-4).fit(self._X)
+            print("Done. Distortion =",km.inertia_)
+            n_p.append(n)
+            dis_p.append(km.inertia_)
+            lbl_p.append(km.labels_)
+        for n in range(2, max_nc_c + 1):
+            print("Trying customers for", n, "clusters...", end="", flush=True)
+            km = KMeans(n_clusters=n, n_init=10, max_iter=300, tol=1e-4).fit(self._Theta)
+            print("Done. Distortion =", km.inertia_)
+            n_c.append(n)
+            dis_c.append(km.inertia_)
+            lbl_c.append(km.labels_)
+
+        rc_result("All Done! Now I will show you the elbow plots, choose your number of clusters from the plots.")
+        rc_warn("Remember: Not the lowest distortion is the best clustering, but the elbow point it is.")
+        rc_state("Close the plots then you can choose clustering results. Feel free to save the plots.")
+        fig = plt.figure("Clustering")
+        ax = plt.subplot(211)
+        ax.xaxis.set_major_locator(MultipleLocator(5))
+        ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax.xaxis.set_minor_locator(MultipleLocator(1))
+        _ = plt.plot(n_p, dis_p, ".-", label="Products Clustering")
+        _ = plt.ylabel("Distortion")
+        _ = plt.legend()
+        ax = plt.subplot(212)
+        ax.xaxis.set_major_locator(MultipleLocator(5))
+        ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax.xaxis.set_minor_locator(MultipleLocator(1))
+        _ = plt.plot(n_c, dis_c, ".-", label="Customers Clustering")
+        _ = plt.xlabel("Number of clusters")
+        _ = plt.ylabel("Distortion")
+        _ = plt.legend()
+        plt.show()
+
+        while True:
+            try:
+                n_p = int(rc_highlight_in("Enter the number of clusters for the best clustering of products you think of: "))
+                if n_p >= 2 and n_p <= max_nc_p:
+                    break
+            except ValueError:
+                pass
+            rc_fail("You should enter a number bigger than 1 and less than " + str(max_nc_p + 1) + ".")
+
+        while True:
+            try:
+                n_c = int(rc_highlight_in("Enter the number of clusters for the best clustering of customers you think of: "))
+                if n_c >= 2 and n_c <= max_nc_c:
+                    break
+            except ValueError:
+                pass
+            rc_fail("You should enter a number bigger than 1 and less than " + str(max_nc_c + 1) + ".")
+
+        return lbl_p[n_p - 2], lbl_c[n_c - 2]
 
     def run(self, _products, _customers):
         while True:
@@ -274,15 +437,10 @@ class Model:
                     x_pred, y_pred, z_pred = [], [], []
                     for i in range(R.shape[0]):
                         for j in range(R.shape[1]):
-#                            if self._test_mask[i, j]:
-#                                x_test.append(i)
-#                                y_test.append(j)
-#                                z_test.append(R[i, j])
                             if self._pred_mask[i, j]:
                                 x_pred.append(i)
                                 y_pred.append(j)
                                 z_pred.append(R[i, j])
-#                    scat_test = ax.scatter(x_test, y_test, z_test, c="tab:orange", marker=".")
                     scat_pred = ax.scatter(x_pred, y_pred, z_pred, c="m", marker=".")
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -292,113 +450,23 @@ class Model:
                 if self._X is None or self._Theta is None:
                     rc_fail("You should first optimize the model to get features!")
                 else:
-                    max_nc_p = 20
-                    max_nc_c = 20
-                    try:
-                        max_nc_p = int(rc_highlight_in("At most how many clusters do you think for products (Default: 20)? "))
-                    except ValueError:
-                        max_nc_p = 20
-                    if max_nc_p >= self._Y.shape[0]:
-                        rc_fail("Number of clusters must be less than number of products! Just take default value 20.")
-                        max_nc_p = 20
-                    try:
-                        max_nc_c = int(rc_highlight_in("At most how many clusters do you think for customers (Default: 20)? "))
-                    except ValueError:
-                        max_nc_c = 20
-                    if max_nc_c >= self._Y.shape[1]:
-                        rc_fail("Number of clusters must be less than number of customers! Just take default value 20.")
-                        max_nc_c = 20
-                    # else:
-                    n_p = []
-                    n_c = []
-                    dis_p = []
-                    dis_c = []
-                    lbl_p = []
-                    lbl_c = []
-                    for n in range(2, max_nc_p + 1):
-                        print("Trying products for", n, "clusters...", end="", flush=True)
-                        km = KMeans(n_clusters=n, n_init=10, max_iter=300, tol=1e-4).fit(self._X)
-                        print("Done. Distortion =",km.inertia_)
-                        n_p.append(n)
-                        dis_p.append(km.inertia_)
-                        lbl_p.append(km.labels_)
-                    for n in range(2, max_nc_c + 1):
-                        print("Trying customers for", n, "clusters...", end="", flush=True)
-                        km = KMeans(n_clusters=n, n_init=10, max_iter=300, tol=1e-4).fit(self._Theta)
-                        print("Done. Distortion =", km.inertia_)
-                        n_c.append(n)
-                        dis_c.append(km.inertia_)
-                        lbl_c.append(km.labels_)
-
-                    rc_result("All Done! Now I will show you the elbow plots, choose your number of clusters from the plots.")
-                    rc_warn("Remember: Not the lowest distortion means best clustering, but the elbow point it is.")
-                    rc_state("Close the plots then you can choose clustering results. Feel free to save the plots.")
-                    fig = plt.figure("Clustering")
-                    ax = plt.subplot(211)
-                    ax.xaxis.set_major_locator(MultipleLocator(5))
-                    ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-                    ax.xaxis.set_minor_locator(MultipleLocator(1))
-                    _ = plt.plot(n_p, dis_p, ".-", label="Products Clustering")
-                    # _ = plt.title("Products Clustering")
-                    _ = plt.ylabel("Distortion")
-                    _ = plt.legend()
-                    ax = plt.subplot(212)
-                    ax.xaxis.set_major_locator(MultipleLocator(5))
-                    ax.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-                    ax.xaxis.set_minor_locator(MultipleLocator(1))
-                    _ = plt.plot(n_c, dis_c, ".-", label="Customers Clustering")
-                    _ = plt.xlabel("Number of clusters")
-                    _ = plt.ylabel("Distortion")
-                    _ = plt.legend()
-                    # _ = plt.title("Customers Clustering")
-                    plt.show()
-
-                    while True:
-                        y = rc_highlight_in("Export to csv files now, enter 'P' or 'C' as for products or customers, nothing to finish: ").upper()
-                        if y == "":
-                            break
-                        if y != "P" and y != "C":
-                            continue
-                        while True:
-                            try:
-                                n = int(rc_highlight_in("Which one you want to export? Enter the number of clusters: "))
-                                if n >= 2 and ((y == "P" and n <= max_nc_p) or (y == "C" and n <= max_nc_c)):
-                                    break
-                                rc_fail("Incorrect number!")
-                            except ValueError:
-                                rc_fail("You should enter a number!")
-                        while True:
-                            csvfn = rc_highlight_in("Give me a filename to export the clustering results: ")
-                            if y != "":
-                                break
-                        if y == "P":
-                            cls = []
-                            labels = lbl_p[n - 2]
-                            for i in range(len(labels)):
-                                cl = labels[i]
-                                sid = self._axis_p[i]
-                                name = _products[sid]
-                                cls.append([cl, sid, name])
-                            cls.sort(key=lambda x: x[0])
-                            with open("clusters_products_" + csvfn + "_" + str(n) + ".csv", "w", newline="") as f:
-                                f_csv = csv.writer(f)
-                                f_csv.writerow(["Cluster", "ProductId", "ProductName"])
-                                for it in cls:
-                                    f_csv.writerow(it)
-                        else:
-                            cls = []
-                            labels = lbl_c[n - 2]
-                            for i in range(len(labels)):
-                                cl = labels[i]
-                                sid = self._axis_c[i]
-                                name = _customers[sid]
-                                cls.append([cl, sid, name])
-                            cls.sort(key=lambda x: x[0])
-                            with open("clusters_customers_" + csvfn + "_" + str(n) + ".csv", "w", newline="") as f:
-                                f_csv = csv.writer(f)
-                                f_csv.writerow(["Cluster", "CustomerSId", "CustomerName"])
-                                for it in cls:
-                                    f_csv.writerow(it)
+                    # choose an algorithm and call it
+                    labels_p, labels_c = None, None
+                    rc_warn("Choose an algorithm from the list below:")
+                    rc_state("  1. KMeans")
+                    rc_state("  2. Affinity Propagation (AP)")
+                    rc_state("  3. Mean Shift")
+                    y = rc_highlight_in("Choose one please: ")
+                    if y == "1":
+                        labels_p, labels_c = self._cluster_kmeans()
+                    elif y == "2":
+                        labels_p, labels_c = self._cluster_affinity()
+                    elif y == "3":
+                        labels_p, labels_c = self._cluster_mean_shift()
+                    else:
+                        rc_fail("Incorrect choice! I'll do nothing then.")
+                    if labels_p is not None and labels_c is not None:
+                        self._export_clusters(labels_p, labels_c, _products, _customers)
             elif opt == 8:
                 # save model
                 while True:
