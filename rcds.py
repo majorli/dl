@@ -76,13 +76,8 @@ class Dataset:
             print("  7. Show current whitelists.")
             print("  8. Clear current whitelist of products.")
             print("  9. Clear current whitelist of customers.")
-            opt = 0
-            while True:
-                o = rc_highlight_in("Now give me your choice (1..9, 0 to exit filtering): ")[0]
-                if o.isdigit():
-                    opt = int(o)
-                    break
-            # end while
+            print("  0. Exit filtering.")
+            opt = rc_select("Now give me your choice (0..9): ", range_=range(10), t="highlight")
             if opt == 0:
                 break
             rc_warn("REMEMBER: Whitelists are temporary, they will BE CLEARED after you leave filtering and they will NEVER BE SAVED!!!")
@@ -144,44 +139,36 @@ class Dataset:
                         print("Customer id:", si, ", name:", name, "is removed from dataset.")
                 self._num_data = np.sum(np.nan_to_num(self._ds) > 0.0)
             elif opt == 5 or opt == 6:
-                s = rc_input("Tell me the cutoff value (>= 0): ")
-                cutoff = -1
-                try:
-                    cutoff = int(s)
-                except ValueError:
-                    pass
-                if cutoff <= 0:
-                    rc_FAIL("NONSENSE! nothing will be changed!")
+                cutoff = rc_select("Tell me the cutoff value (1.." + str(self._ds.shape[6-opt]) + "): ", range_=range(1, self._ds.shape[6-opt]))
+                # removing
+                d = np.nan_to_num(self._ds) > 0.0
+                if opt == 5:
+                    l = np.sum(d, axis=1) > cutoff
+                    self._ds = self._ds[l, :]
+                    # l = ~l
                 else:
-                    # removing
-                    d = np.nan_to_num(self._ds) > 0.0
-                    if opt == 5:
-                        l = np.sum(d, axis=1) > cutoff
-                        self._ds = self._ds[l, :]
-                        # l = ~l
-                    else:
-                        l = np.sum(d, axis=0) > cutoff
-                        self._ds = self._ds[:, l]
-                    l = ~l
-                    cnt = 0
-                    for i in range(len(l)-1, -1, -1):
-                        if l[i]:
-                            if opt == 5:
-                                si = self._axis_p[i]
-                                if si in _p_wl:
-                                    continue
-                                _ = self._products.pop(si)
-                                self._axis_p.remove(si)
-                                cnt += 1
-                            else:
-                                si = self._axis_c[i]
-                                if si in _c_wl:
-                                    continue
-                                _ = self._customers.pop(si)
-                                self._axis_c.remove(si)
-                                cnt += 1
-                    rc_result("Totally " + str(np.sum(l)) + " items removed.")
-                    self._num_data = np.sum(np.nan_to_num(self._ds) > 0.0)
+                    l = np.sum(d, axis=0) > cutoff
+                    self._ds = self._ds[:, l]
+                l = ~l
+                cnt = 0
+                for i in range(len(l)-1, -1, -1):
+                    if l[i]:
+                        if opt == 5:
+                            si = self._axis_p[i]
+                            if si in _p_wl:
+                                continue
+                            _ = self._products.pop(si)
+                            self._axis_p.remove(si)
+                            cnt += 1
+                        else:
+                            si = self._axis_c[i]
+                            if si in _c_wl:
+                                continue
+                            _ = self._customers.pop(si)
+                            self._axis_c.remove(si)
+                            cnt += 1
+                rc_result("Totally " + str(np.sum(l)) + " items removed.")
+                self._num_data = np.sum(np.nan_to_num(self._ds) > 0.0)
             elif opt == 7:
                 l = len(_p_wl)
                 rc_result("Whitelist for products has " + str(l) + " items:")
@@ -201,20 +188,11 @@ class Dataset:
         return
 
     def browse(self):
-        axis, coords, zs = None, None, None
-        while True:
-            axis = rc_input("Enter 'P' for browsing by products, or 'C' for browsing by customers: ")[0].upper()
-            if axis == 'P' or axis == 'C':
-                break
-        while True:
+        axis = rc_choose("Enter 'P' for browsing by products, or 'C' for browsing by customers: ", range_=["P", "C"])
+        coords = []
+        while len(coords) <= 0:
             coords = rc_input("Enter ids to browse, separating by <spaces>: ").split()
-            if len(coords) > 0:
-                break
-        while True:
-            zs = rc_input("Show zeros? (Y/N) ").upper()
-            if zs != "" and (zs[0] == 'Y' or zs[0] == 'N'):
-                zs = zs[0]
-                break
+        zs = rc_ensure("Skip zeros? (Y/N) ")
 
         if axis == "P":
             for pid in coords:
@@ -226,7 +204,7 @@ class Dataset:
                 x = self._axis_p.index(spid)
                 dx = self._ds[x, :]
                 for i in range(len(dx)):
-                    if (dx[i] is np.nan or dx[i] == 0.0) and zs == 'N':
+                    if (dx[i] is np.nan or dx[i] == 0.0) and zs:
                         continue
                     c = "%9.4f by " % dx[i] + self._customers[self._axis_c[i]] + "[" + self._axis_c[i] + "]"
                     print(c)
@@ -241,7 +219,7 @@ class Dataset:
                 x = self._axis_c.index(scid)
                 dx = self._ds[:, x]
                 for i in range(len(dx)):
-                    if (dx[i] is np.nan or dx[i] == 0.0) and zs == 'N':
+                    if (dx[i] is np.nan or dx[i] == 0.0) and zs:
                         continue
                     p = "%9.4f of " % dx[i] + self._products[self._axis_p[i]] + "[" + self._axis_p[i] + "]"
                     print(p)

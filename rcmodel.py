@@ -71,8 +71,9 @@ class Model:
 
     def _export_clusters(self, labels_p, labels_c, _products, _customers):
 
-        csvfn = rc_highlight_in("Give me a name to export the clustering results, nothing to quit exporting: ")
+        csvfn = rc_getstr("Give me a name to export the clustering results, nothing to quit exporting: ", t="highlight", keepblank=True)
         if csvfn == "":
+            rc_warn("Quit.")
             return
 
         n_p = len(np.unique(labels_p))
@@ -118,22 +119,13 @@ class Model:
         return ms_p.labels_, ms_c.labels_
 
     def _cluster_affinity(self):
-        try:
-            pf_p = float(rc_highlight_in("Enter a real number <= 0.0 as the preference of products clustering: "))
-            if pf_p > 0.0:
-                rc_warn("Incorrect! Use default parameter.")
-                pf_p = None
-        except ValueError:
-            rc_warn("Incorrect! Use default parameter.")
+        pf_p = rc_getnum("Enter a non-positive number as the preference of products clustering, or nothing to use default value: ", t="highlight", blankas=None)
+        if pf_p is not None and pf_p > 0.0:
+            rc_warn("Incorrect! Should be a non-positive number. Use default parameter.")
             pf_p = None
-
-        try:
-            pf_c = float(rc_highlight_in("Enter a real number <= 0.0 as the preference of customers clustering: "))
-            if pf_c > 0.0:
-                rc_warn("Incorrect! Use default parameter.")
-                pf_c = None
-        except ValueError:
-            rc_warn("Incorrect! Use default parameter.")
+        pf_c = rc_getnum("Enter a non-positive number as the preference of customers clustering, or nothing to use default value: ", t="highlight", blankas=None)
+        if pf_c is not None and pf_c > 0.0:
+            rc_warn("Incorrect! Should be a non-positive number. Use default parameter.")
             pf_c = None
 
         print("Trying products clustering...", end="", flush=True)
@@ -152,23 +144,8 @@ class Model:
         return af_p.labels_, af_c.labels_
 
     def _cluster_kmeans(self):
-        max_nc_p = 20
-        max_nc_c = 20
-        try:
-            max_nc_p = int(rc_highlight_in("At most how many clusters do you think for products (Default: 20)? "))
-        except ValueError:
-            max_nc_p = 20
-        if max_nc_p >= self._Y.shape[0]:
-            rc_fail("Number of clusters must be less than number of products! Just take default value 20.")
-            max_nc_p = 20
-
-        try:
-            max_nc_c = int(rc_highlight_in("At most how many clusters do you think for customers (Default: 20)? "))
-        except ValueError:
-            max_nc_c = 20
-        if max_nc_c >= self._Y.shape[1]:
-            rc_fail("Number of clusters must be less than number of customers! Just take default value 20.")
-            max_nc_c = 20
+        max_nc_p = rc_select("At most how many clusters do you think for products (2.." + str(self._Y.shape[0]-1) + ")? ", range_=range(2, self._Y.shape[0]), t="highlight")
+        max_nc_c = rc_select("At most how many clusters do you think for customers (2.." + str(self._Y.shape[1]-1) + ")? ", range_=range(2, self._Y.shape[1]), t="highlight")
 
         n_p = []
         n_c = []
@@ -212,24 +189,8 @@ class Model:
         _ = plt.legend()
         plt.show()
 
-        while True:
-            try:
-                n_p = int(rc_highlight_in("Enter the number of clusters for the best clustering of products you think of: "))
-                if n_p >= 2 and n_p <= max_nc_p:
-                    break
-            except ValueError:
-                pass
-            rc_fail("You should enter a number bigger than 1 and less than " + str(max_nc_p + 1) + ".")
-
-        while True:
-            try:
-                n_c = int(rc_highlight_in("Enter the number of clusters for the best clustering of customers you think of: "))
-                if n_c >= 2 and n_c <= max_nc_c:
-                    break
-            except ValueError:
-                pass
-            rc_fail("You should enter a number bigger than 1 and less than " + str(max_nc_c + 1) + ".")
-
+        n_p = rc_select("Enter the number of clusters for the best clustering of products you think of (2.." + str(max_nc_p) + "): ", range_=range(2, max_nc_p+1), t="highlight")
+        n_c = rc_select("Enter the number of clusters for the best clustering of customers you think of (2.." + str(max_nc_c) + "): ", range_=range(2, max_nc_c+1), t="highlight")
         return lbl_p[n_p - 2], lbl_c[n_c - 2]
 
     def run(self, _products, _customers):
@@ -244,13 +205,8 @@ class Model:
             print("  6. Plot results.")
             print("  7. Cluster products and customers.")
             print("  8. Save model.")
-            opt = 0
-            while True:
-                o = rc_highlight_in("What would you like (1..9, 0 to exit): ")[0]
-                if o.isdigit():
-                    opt = int(o)
-                    break
-            # end while
+            print("  0. Exit model running.")
+            opt = rc_select("What would you like (0..8): ", range_=range(9), t="highlight")
             if opt == 0:
                 break
             if opt == 1:
@@ -264,75 +220,45 @@ class Model:
                 rc_result("Model algorithm is changed to " + self._algo + " and model has reset.")
             elif opt == 2:
                 # change learning rate
-                y = rc_highlight_in("Enter new learning rate, remember it's a small positive real number: ")
-                try:
-                    l = float(y)
-                    if l <= 0.0:
-                        rc_fail("What a silly number you have entered! The learning rate must be positive.")
-                        rc_warn("Incorrect value, nothing changed.")
-                    else:
-                        self._learning_rate = l
-                        rc_result("Learning rate is changed to " + str(l) + ".")
-                except ValueError:
-                    rc_fail("Haven't I told you that learning rate must be a number?")
+                l = rc_getnum("Enter new learning rate, a small positive real number (Default: unchange): ", t="highlight", blankas=self._learning_rate)
+                if l <= 0.0:
+                    rc_fail("Havn't I told you that the learning rate must be positive.")
                     rc_warn("Incorrect value, nothing changed.")
+                else:
+                    self._learning_rate = l
+                    rc_result("Learning rate is changed to " + str(l) + ".")
             elif opt == 3:
                 # change L2
-                y = rc_highlight_in("Enter new L2 parameter, remember it's a non-negative real number: ")
-                try:
-                    l = float(y)
-                    if l < 0.0:
-                        rc_fail("What a silly number you have entered! L2 parameter must be zero or positive.")
-                        rc_warn("Incorrect value, nothing changed.")
-                    else:
-                        self._L2 = l
-                        rc_result("L2 regularization parameter is changed to " + str(l) + ".")
-                except ValueError:
+                l = rc_getnum("Enter new L2 parameter, a non-negative real number (Default: unchange): ", t="highlight", blankas=self._L2)
+                if l < 0.0:
                     rc_fail("Haven't I told you that L2 parameter must be a number?")
                     rc_warn("Incorrect value, nothing changed.")
+                else:
+                    self._L2 = l
+                    rc_result("L2 regularization parameter is changed to " + str(l) + ".")
             elif opt == 4:
                 # change number of features
-                y = rc_highlight_in("Enter the number of features, a positive integer please: ")
-                try:
-                    l = int(y)
-                    if l <= 0:
-                        rc_fail("What a silly number you have entered! The number of features must be positive.")
-                        rc_warn("Incorrect value, nothing changed.")
-                    else:
-                        self._num_features = l
-                        # set steps trained to zero, must optimize from the begin and can't do 6, 7, 8 now
-                        self._steps_trained = 0
-                        rc_result("Now there will be " + str(l) + " features for each product and customer. Model has rest.")
-                except ValueError:
-                    rc_fail("I told you that number of features must be positive!")
+                l = rc_getint("Enter the number of features, a positive integer (Default: unchange): ", t="highlight", blankas=self._num_features)
+                if l <= 0:
+                    rc_fail("What a silly number you have entered! The number of features must be positive.")
                     rc_warn("Incorrect value, nothing changed.")
+                else:
+                    self._num_features = l
+                    # set steps trained to zero, must optimize from the begin and can't do 6, 7, 8 now
+                    self._steps_trained = 0
+                    rc_result("Now there will be " + str(l) + " features for each product and customer. Model has rest.")
             elif opt == 5:
                 # optimize
-                if self._steps_trained > 0:
-                    while True:
-                        y = rc_warn_in("This model has been trained for " + str(self._steps_trained) + " steps. Would you like to reset it and learn from the very beginning? Choose NO to continue learning (Y/N)? ").upper()
-                        if y != "" and (y[0] == "Y" or y[0] == "N"):
-                            y = y[0]
-                            break
-                    if y == 'Y':
-                        self._steps_trained = 0
-                        self._X = None
-                        self._Theta = None
+                if self._algo == "Adam" or (self._steps_trained > 0 and rc_ensure("This is a trained G.D. model. Do you want to restart learning? (Y/N)? ", t="warn")):
+                    self._steps_trained = 0
+                    self._X = None
+                    self._Theta = None
 
-                y = rc_highlight_in("How many steps would you like to learn (default: 1000)? ")
-                try:
-                    num_steps = int(y)
-                    if num_steps <= 0:
-                        num_steps = 1000
-                except ValueError:
+                num_steps = rc_getint("How many steps would you like to learn (default: 1000)? ", t="highlight", blankas=1000)
+                if num_steps <= 0:
                     num_steps = 1000
 
-                while True:
-                    y = rc_highlight_in("Would you like to keep negative results (Y/N)? ").upper()
-                    if y != "" and (y[0] == "Y" or y[0] == "N"):
-                        y = y[0]
-                        break
-                relu = y == "N"             # whether to apply relu on the prediction or not
+                relu = not rc_ensure("Would you like to keep negative results (Y/N)? ", t="highlight")
                 rc_state("Optimizing...")
                 self.optimize(num_steps)
                 rc_state("Predicting...")
@@ -381,7 +307,7 @@ class Model:
                 rc_result("   WORST ERROR = " + str(WE_test))
                 rc_warn("   VARIANCE = " + str(Variance))
                 # export prediction results and precisions
-                y = rc_highlight_in("Exporting results, give me a filename (without extname), nothing to not export: ")
+                y = rc_getstr("Exporting results, give me a filename (without extname), nothing to not export: ", t="highlight", keepblank=True)
                 if y != "":
                     with open("results_tbl_" + y + ".csv", "w", newline="") as f:
                         f_csv = csv.writer(f)
@@ -418,7 +344,7 @@ class Model:
                     f_json = open("results_eva_" + y + ".json", "w")
                     json.dump(self._eva, f_json)
                     f_json.close()
-                    rc_state("Results exported.")
+                    rc_result("Results exported.")
                 else:
                     rc_warn("Results not exported.")
             elif opt == 6:
@@ -456,12 +382,12 @@ class Model:
                     rc_state("  1. KMeans")
                     rc_state("  2. Affinity Propagation (AP)")
                     rc_state("  3. Mean Shift")
-                    y = rc_highlight_in("Choose one please: ")
-                    if y == "1":
+                    y = rc_select("Choose one please: ", range_=range(1, 4), t="highlight")
+                    if y == 1:
                         labels_p, labels_c = self._cluster_kmeans()
-                    elif y == "2":
+                    elif y == 2:
                         labels_p, labels_c = self._cluster_affinity()
-                    elif y == "3":
+                    elif y == 3:
                         labels_p, labels_c = self._cluster_mean_shift()
                     else:
                         rc_fail("Incorrect choice! I'll do nothing then.")
@@ -469,12 +395,12 @@ class Model:
                         self._export_clusters(labels_p, labels_c, _products, _customers)
             elif opt == 8:
                 # save model
-                while True:
-                    y = rc_highlight_in("Enter the name of this model: ")
-                    if y != "":
-                        break
-                self.save(y)
-                rc_result("Saved Okay as '" + y + "'.")
+                y = rc_getstr("Enter the name of this model, nothing to quit saving: ", t="highlight", keepblank=True)
+                if y == "":
+                    rc_warn("Quit.")
+                else:
+                    self.save(y)
+                    rc_result("Saved Okay as '" + y + "'.")
             else:
                 pass
 

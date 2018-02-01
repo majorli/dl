@@ -55,32 +55,24 @@ def load_dataset():
     global dataset
     global model
     global g_mask
-    if dataset is not None:
-        while True:
-            y = rc_warn_in("Load dataset will overwrite current dataset, are you sure (Y/N)? ").upper()
-            if y != "" and (y[0] == "Y" or y[0] == "N"):
-                y = y[0]
-                break
-        if y == "N":
-            return
 
-    while True:
-        y = rc_input("What kind of dataset do you want to load, (0) for raw records or (1) for saved dataset? ")[0]
-        if y == "0" or y == "1":
-            break
-        else:
-            rc_fail("WTF! Tell me just (0) for raw records or (1) for saved dataset? ")
-    # end while
+    if dataset is not None and not rc_ensure("Load dataset will overwrite current dataset, are you sure? (Y/N) ", t="warn"):
+        return
+
+    y = rc_select("What kind of dataset do you want to load, (0) for raw records or (1) for saved dataset? ")
     
-    if y == "0":
-        fn = rc_input("Tell me the raw records csv filename (without ext '.csv'): ")
+    if y == 0:
+        fn = rc_getstr("Tell me the raw records csv filename (without ext '.csv'): ", keepblank=True)
         fullname = fn + ".csv"
     else:
-        fn = rc_input("What's the dataset name? ")
-        fullname = "ds_" + fn + ".npz"      # filename of dataset: 'ds_' + name + ".npz"
+        fn = rc_getstr("What's the dataset name? ", keepblank=True)
+        fullname = "ds_" + fn + ".npz"
+    if fn == "":
+        rc_warn("Quit.")
+        return
     if os.path.exists(fullname):
         dataset = rcd.Dataset()
-        if dataset.load(fn, int(y)):
+        if dataset.load(fn, y):
             rc_result("Okay! Dataset '" + fn + "' is loaded.")
             den = round(dataset.density() * 100, 2)
             rc_result("The data density is " + str(den) + "%. You can filter some products or customers that have very small number of sales to make the data density bigger.")
@@ -112,12 +104,12 @@ def filter_dataset():
 
 def save_dataset():
     global dataset
-    fn = rc_input("Enter the dataset name, nothing to quit saving: ")
+    fn = rc_getstr("Enter the dataset name, nothing to quit saving: ", keepblank=True)
     if fn != "":
         dataset.save(fn)
         rc_result("Saved Okay!")
     else:
-        rc_warn("Not saved.")
+        rc_warn("Quit.")
     return
 
 def create_model():
@@ -125,8 +117,8 @@ def create_model():
     global model
     global g_mask
 
-    rc_header("You can try a new model with hyperparameters from another early saved model.")
-    ref = rc_input("Enter the ref-model name or nothing to create a new defalut model: ")
+    rc_header("You can create a new model with hyperparameters from an early saved model.")
+    ref = rc_getstr("Enter the ref-model name or nothing to create a new defalut model: ", keepblank=True)
     if ref != "" and not os.path.exists("model_" + ref + ".npz"):
         rc_fail("Where is this funny '" + ref + "' model? But don't worry, I'll create a default one for you.")
         ref = ""
@@ -145,19 +137,16 @@ def load_model():
     global g_mask
 
     if model is not None:
-        while True:
-            y = rc_warn_in("Load a new model will overwrite current model. Is it okay (Y/N)? ").upper()
-            if y != "" and (y[0] == "Y" or y[0] == "N"):
-                y = y[0]
-                break
-        if y == "N":
+        if not rc_ensure("Load a new model will overwrite current model. Is it okay (Y/N)? ", t="warn"):
             return
 
-    while True:
-        y = rc_input("Tell me the name of the model you want to load: ")
-        if os.path.exists("model_" + y + ".npz"):
-            break
+    y = rc_getstr("Tell me the name of the model you want to load, nothing to quit loading: ", keepblank=True)
+    if y == "":
+        rc_warn("Quit.")
+        return
+    if not os.path.exists("model_" + y + ".npz"):
         rc_warn("Where is this funny '" + y + "' model?")
+        return
 
     if model is None:
         model = rcm.Model("")
@@ -176,12 +165,16 @@ def load_mask():
         rc_fail("You should first have a model, man!")
         return
 
-    while True:
-        fn = rc_input("Tell me the name and I'll give you the mask: ")
-        if os.path.exists("mask_" + fn + ".json"):
-            break
-
+    fn = rc_getstr("Tell me the name and I'll give you the mask, input nothing to quit loading: ", keepblank=True)
+    if fn == "":
+        rc_warn("Quit.")
+        return
+    
     fn = "mask_" + fn + ".json"
+    if not os.path.exists(fn):
+        rc_fail("Cannot find this mask!")
+        return
+
     f = open(fn, "r")
     g_mask = json.load(f)
     f.close()
@@ -193,11 +186,13 @@ def load_mask():
 def _generate_one_round_mask():
     global g_mask
 
-    while True:
-        fn = rc_input("Enter the filename of classes-products table (without .csv): ") + ".csv"
-        if os.path.exists(fn):
-            break
-        pass
+    fn = None
+    while fn is None:
+        fn = rc_getstr("Enter the filename of classes-products table (without .csv): ") + ".csv"
+        if not os.path.exists(fn):
+            rc_fail("File not found! Try again.")
+            fn = None
+
     f = open(fn)
     f_csv = csv.reader(f)
     # 0:, 1:class, 2:productsid, 3:[X], 4:[X], 5:[X], 6:mask, 7:[X]
@@ -221,11 +216,13 @@ def _generate_one_round_mask():
     # end for
     f.close()
 
-    while True:
-        fn = rc_input("Enter the filename of customers-classes table (without .csv): ") + ".csv"
-        if os.path.exists(fn):
-            break
-        pass
+    fn = None
+    while fn is None:
+        fn = rc_getstr("Enter the filename of customers-classes table (without .csv): ") + ".csv"
+        if not os.path.exists(fn):
+            rc_fail("File not found! Try again.")
+            fn = None
+
     f = open(fn)
     f_csv = csv.reader(f)
     # 0:, 1:customersid, 2:customerno, 3:enterprise, 4:dicname(class), 5:isdemocustomer
@@ -260,19 +257,15 @@ def generate_mask():
 
     # generate round by round
     g_mask = None
-    while True:
+    rounds = 0
+    cont = True
+    while cont:
         _generate_one_round_mask()
-        y = rc_highlight_in("Done. Say anything (e.g. 'y') to continue generating, or nothing to finish: ")
-        if y == "":
-            break
+        rounds = rounds + 1
+        cont =  rc_ensure("Week " + str(rounds) + ": Done! Continue to another week (Y/N)?", t="highlight")
 
     # Save the mask
-    while True:
-        fn = rc_input("Global mask needs be saved immediately. Give me a name: ")
-        if fn != "":
-            break
-
-    fn = "mask_" + fn + ".json"
+    fn = "mask_" + rc_getstr("Global mask needs be saved immediately. Give me a name: ") + ".json"
     f = open(fn, "w")
     json.dump(g_mask, f)
     f.close()
@@ -304,22 +297,6 @@ def run_model():
         else:
             model.run(dataset._products, dataset._customers)
     return
-
-#def save_model():
-#    global dataset
-#    global model
-#    if model is None:
-#        rc_fail("You should first have a model, man!")
-#        return
-#
-#    while True:
-#        fn = rc_highlight_in("Enter the name of this model: ")
-#        if fn != "":
-#            break
-#
-#    model.save(fn)
-#    rc_result("Save as '" + fn + "', Okay.")
-#    return
 
 MENUITEMS = [
     ("Load a dataset.", load_dataset),
@@ -360,19 +337,11 @@ while True:
         print(str(i+1) + ": " + menu[i][0])
         pass
     print("0: " + menu[-1][0])
-    cmd = rc_highlight_in(PROMPT)
-    try:
-        c = int(cmd)
-        if c == 0:
-            break;                      # break the main loop 'while True'
-        if c < len(menu):
-            menu[c-1][1]()              # call the defined function
-            continue
-    except ValueError:
-        pass
-    print(cmd)
-    rc_fail("Are you kidding? Choose something from what I showed you.")
-# end while
+    c = rc_select(PROMPT, range_=range(len(menu)), t="highlight")
+    if c == 0:
+        break
+    else:
+        menu[c-1][1]()
 
 # Script end here
 
