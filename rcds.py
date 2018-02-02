@@ -57,7 +57,7 @@ class Dataset:
                 "P" : P,
                 "C" : C
                 }
-        rc_result("Training set generated. Removed " + str(len(nons)) + " 'X-man' customers, found " + str(np.sum(np.isnan(Y))) + " data points to predict.")
+        rc_result("Training set generated. Removed {0:d} 'X-man' customers, found {1:d} data points to predict.".format(len(nons), np.sum(np.isnan(Y))))
         return ts
 
 
@@ -85,7 +85,7 @@ class Dataset:
                 ids = rc_input("Enter the ids to toggle whitelist states, separating by <spaces>: ").split()
                 if opt == 1:
                     for i in ids:
-                        si = "0" * (8 - len(i[:8])) + i[:8]
+                        si = i.zfill(8)
                         if si not in self._products:
                             print("Product id:", si, bcolors.FAIL + "not exists." + bcolors.ENDC)
                             continue
@@ -97,7 +97,7 @@ class Dataset:
                             print("Product id:", si, ", name:", self._products[si], "is put into whitelist.")
                 else:
                     for i in ids:
-                        si = "0" * (9 - len(i[:9])) + i[:9]
+                        si = i.zfill(9)
                         if si not in self._customers:
                             print("Customer id:", si, bcolors.FAIL + "not exists." + bcolors.ENDC)
                             continue
@@ -111,7 +111,7 @@ class Dataset:
                 ids = rc_input("Enter the ids to remove from dataset, separating by <spaces>: ").split()
                 if opt == 3:
                     for i in ids:
-                        si = "0" * (8 - len(i[:8])) + i[:8]
+                        si = i.zfill(8)
                         if si not in self._products:
                             print("Product id:", si, bcolors.FAIL + "not exists." + bcolors.ENDC)
                             continue
@@ -125,7 +125,7 @@ class Dataset:
                         print("Product id:", si, ", name:", name, "is removed from dataset.")
                 else:
                     for i in ids:
-                        si = "0" * (9 - len(i[:9])) + i[:9]
+                        si = i.zfill(9)
                         if si not in self._customers:
                             print("Customer id:", si, bcolors.FAIL + "not exists." + bcolors.ENDC)
                             continue
@@ -145,7 +145,6 @@ class Dataset:
                 if opt == 5:
                     l = np.sum(d, axis=1) > cutoff
                     self._ds = self._ds[l, :]
-                    # l = ~l
                 else:
                     l = np.sum(d, axis=0) > cutoff
                     self._ds = self._ds[:, l]
@@ -167,17 +166,17 @@ class Dataset:
                             _ = self._customers.pop(si)
                             self._axis_c.remove(si)
                             cnt += 1
-                rc_result("Totally " + str(np.sum(l)) + " items removed.")
+                rc_result("Totally {0} items removed.".format(np.sum(l)))
                 self._num_data = np.sum(np.nan_to_num(self._ds) > 0.0)
             elif opt == 7:
                 l = len(_p_wl)
-                rc_result("Whitelist for products has " + str(l) + " items:")
+                rc_result("Whitelist for products has {0} items:".format(l))
                 for i in _p_wl:
-                    print("  " + self._products[i] + "[" + i + "]")
+                    print("  {0}[{1}]".format(self._products[i], i))
                 l = len(_c_wl)
-                rc_result("Whitelist for customers has " + str(l) + " items:")
+                rc_result("Whitelist for customers has {0} items:".format(l))
                 for i in _c_wl:
-                    print("  " + self._customers[i] + "[" + i + "]")
+                    print("  {0}[{1}]".format(self._customers[i], i))
             elif opt == 8:
                 _p_wl = []
                 rc_result("Whitelist of products cleared.")
@@ -196,7 +195,7 @@ class Dataset:
 
         if axis == "P":
             for pid in coords:
-                spid = "0" * (8 - len(pid[:8])) + pid[:8]
+                spid = pid.zfill(8)
                 if spid not in self._products:
                     rc_fail("Product id: " + spid + " not exists.")
                     continue
@@ -211,7 +210,7 @@ class Dataset:
                 rc_state("This product has been saled by " + str(np.sum(dx > 0.0)) + " different customers")
         else:
             for cid in coords:
-                scid = "0" * (9 - len(cid[:9])) + cid[:9]
+                scid = cid.zfill(9)
                 if scid not in self._customers:
                     rc_fail("Customer id: " + scid + " not exists.")
                     continue
@@ -337,11 +336,7 @@ class Dataset:
             return True
 
     def states(self):
-        s = self._name + ", "
-        s += str(len(self._axis_p)) + " products, "
-        s += str(len(self._axis_c)) + " customers, "
-        s += str(self._num_data) + " non-zero data, "
-        s += "dataset density = " + str(round(self.density(), 4))
+        s = "{name}, {num_products:d} products, {num_customers:d} customers, {num_data:d} non-zero data, dataset density = {data_density:.4f}".format(name=self._name, num_products=len(self._axis_p), num_customers=len(self._axis_c), num_data=self._num_data, data_density=round(self.density(), 4))
         return s
 
     def density(self):
