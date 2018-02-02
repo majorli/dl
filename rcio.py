@@ -44,11 +44,35 @@ def rc_highlight_in(pmt):
     print(bcolors.BOLD + pmt + bcolors.ENDC, end="", flush=True)
     return input().strip()
 
+def rc_fail_in(pmt):
+    print(bcolors.FAIL + pmt + bcolors.ENDC, end="", flush=True)
+    return input().strip()
+
+def rc_state_in(pmt):
+    print(bcolors.OKBLUE + pmt + bcolors.ENDC, end="", flush=True)
+    return input().strip()
+
+def rc_result_in(pmt):
+    print(bcolors.OKGREEN + pmt + bcolors.ENDC, end="", flush=True)
+    return input().strip()
+
+def rc_header_in(pmt):
+    print(bcolors.HEADER + pmt + bcolors.ENDC, end="", flush=True)
+    return input().strip()
+
 def _rc_type_in(pmt, t):
     if t == "warn":
         y = rc_warn_in(pmt)
     elif t == "highlight":
         y = rc_highlight_in(pmt)
+    elif t == "fail":
+        y = rc_fail_in(pmt)
+    elif t == "state":
+        y = rc_state_in(pmt)
+    elif t == "result":
+        y = rc_result_in(pmt)
+    elif t == "header":
+        y = rc_header_in(pmt)
     else:
         y = rc_input(pmt)
 
@@ -115,4 +139,25 @@ def rc_getint(pmt, t="", blankas=0):
                 y = blankas
                 break
     return y
+
+def rc_putstr(*values, t="", sep=" ", end="\n", flush=False):
+    if t == "warn":
+        print(bcolors.WARNING, end="")
+    elif t == "fail":
+        print(bcolors.FAIL, end="")
+    elif t == "state":
+        print(bcolors.OKBLUE, end="")
+    elif t == "result":
+        print(bcolors.OKGREEN, end="")
+    elif t == "header":
+        print(bcolors.HEADER, end="")
+    elif t == "highlight":
+        print(bcolors.BOLD, end="")
+    else:
+        pass
+
+    print(*values, end="", sep=sep)
+    print("", end=end)
+    print(bcolors.ENDC, end="", flush=flush)
+    return
 

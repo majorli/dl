@@ -75,7 +75,7 @@ def load_dataset():
         if dataset.load(fn, y):
             rc_result("Okay! Dataset '" + fn + "' is loaded.")
             den = round(dataset.density() * 100, 2)
-            rc_result("The data density is " + str(den) + "%. You can filter some products or customers that have very small number of sales to make the data density bigger.")
+            rc_result("The data density is {0:.2f}%. You can filter some products or customers that have very small number of sales to make the data density bigger.".format(den))
             if model is not None and g_mask is not None:
                 model.fed(dataset.generate_training_set(g_mask))
                 rc_result("Training set in the model is updated.")
@@ -117,10 +117,10 @@ def create_model():
     global model
     global g_mask
 
-    rc_header("You can create a new model with hyperparameters from an early saved model.")
+    rc_highlight("You can create a new model with hyperparameters from an early saved model.")
     ref = rc_getstr("Enter the ref-model name or nothing to create a new defalut model: ", keepblank=True)
     if ref != "" and not os.path.exists("model_" + ref + ".npz"):
-        rc_fail("Where is this funny '" + ref + "' model? But don't worry, I'll create a default one for you.")
+        rc_fail("Where is this funny '{0}' model? But don't worry, I'll create a default one for you.".format(ref))
         ref = ""
     model = rcm.Model(ref)
     # Feed dataset and mask. If no mask, send a warning.
@@ -145,7 +145,7 @@ def load_model():
         rc_warn("Quit.")
         return
     if not os.path.exists("model_" + y + ".npz"):
-        rc_warn("Where is this funny '" + y + "' model?")
+        rc_warn("Where is this funny '{0}' model?".format(y))
         return
 
     if model is None:
@@ -262,7 +262,7 @@ def generate_mask():
     while cont:
         _generate_one_round_mask()
         rounds = rounds + 1
-        cont =  rc_ensure("Week " + str(rounds) + ": Done! Continue to another week (Y/N)?", t="highlight")
+        cont =  rc_ensure("Week {0:d}: Done! Continue to another week (Y/N)?".format(rounds), t="highlight")
 
     # Save the mask
     fn = "mask_" + rc_getstr("Global mask needs be saved immediately. Give me a name: ") + ".json"
