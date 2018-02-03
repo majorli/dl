@@ -156,7 +156,7 @@ class Model:
         for n in range(2, max_nc_p + 1):
             print("Trying products for", n, "clusters...", end="", flush=True)
             km = KMeans(n_clusters=n, n_init=10, max_iter=300, tol=1e-4).fit(self._X)
-            print("Done. Distortion =",km.inertia_)
+            print("Done. Distortion =", km.inertia_)
             n_p.append(n)
             dis_p.append(km.inertia_)
             lbl_p.append(km.labels_)
@@ -226,7 +226,7 @@ class Model:
                     rc_warn("Incorrect value, nothing changed.")
                 else:
                     self._learning_rate = l
-                    rc_result("Learning rate is changed to " + str(l) + ".")
+                    rc_result("Learning rate is changed to {0}.".format(l))
             elif opt == 3:
                 # change L2
                 l = rc_getnum("Enter new L2 parameter, a non-negative real number (Default: unchange): ", t="highlight", blankas=self._L2)
@@ -235,7 +235,7 @@ class Model:
                     rc_warn("Incorrect value, nothing changed.")
                 else:
                     self._L2 = l
-                    rc_result("L2 regularization parameter is changed to " + str(l) + ".")
+                    rc_result("L2 regularization parameter is changed to {0}.".format(l))
             elif opt == 4:
                 # change number of features
                 l = rc_getint("Enter the number of features, a positive integer (Default: unchange): ", t="highlight", blankas=self._num_features)
@@ -246,7 +246,7 @@ class Model:
                     self._num_features = l
                     # set steps trained to zero, must optimize from the begin and can't do 6, 7, 8 now
                     self._steps_trained = 0
-                    rc_result("Now there will be " + str(l) + " features for each product and customer. Model has rest.")
+                    rc_result("Now there will be {0} features for each product and customer. Model has rest.".format(l))
             elif opt == 5:
                 # optimize
                 if self._algo == "Adam" or (self._steps_trained > 0 and rc_ensure("This is a trained G.D. model. Do you want to restart learning? (Y/N)? ", t="warn")):
@@ -294,18 +294,18 @@ class Model:
                         "WE_test" : WE_test,
                         "Variance" : Variance,
                         }
-                rc_result("1. Evaluating by " + str(pred_train.shape[0]) + " training examples:")
-                rc_result("   TOTAL ERROR = " + str(TE_train))
-                rc_result("   AVERAGE ERROR = " + str(AE_train))
-                rc_result("   BEST ERROR = " + str(BE_train))
-                rc_result("   WORST ERROR = " + str(WE_train))
-                rc_warn("   BIAS = " + str(Bias))
-                rc_result("2. Evaluating by " + str(pred_test.shape[0]) + " test examples:")
-                rc_result("   TOTAL ERROR = " + str(TE_test))
-                rc_result("   AVERAGE ERROR = " + str(AE_test))
-                rc_result("   BEST ERROR = " + str(BE_test))
-                rc_result("   WORST ERROR = " + str(WE_test))
-                rc_warn("   VARIANCE = " + str(Variance))
+                rc_result("1. Evaluating by {0} training examples:".format(pred_train.shape[0]))
+                rc_result("   TOTAL ERROR = {0}".format(TE_train))
+                rc_result("   AVERAGE ERROR = {0}".format(AE_train))
+                rc_result("   BEST ERROR = {0}".format(BE_train))
+                rc_result("   WORST ERROR = {0}".format(WE_train))
+                rc_warn("   BIAS = {0}".format(Bias))
+                rc_result("2. Evaluating by {0} test examples:".format(pred_test.shape[0]))
+                rc_result("   TOTAL ERROR = {0}".format(TE_test))
+                rc_result("   AVERAGE ERROR = {0}".format(AE_test))
+                rc_result("   BEST ERROR = {0}".format(BE_test))
+                rc_result("   WORST ERROR = {0}".format(WE_test))
+                rc_warn("   VARIANCE = {0}".format(Variance))
                 # export prediction results and precisions
                 y = rc_getstr("Exporting results, give me a filename (without extname), nothing to not export: ", t="highlight", keepblank=True)
                 if y != "":
@@ -400,7 +400,7 @@ class Model:
                     rc_warn("Quit.")
                 else:
                     self.save(y)
-                    rc_result("Saved Okay as '" + y + "'.")
+                    rc_result("Saved Okay as '{0}'.".format(y))
             else:
                 pass
 
@@ -470,7 +470,7 @@ class Model:
         return
 
     def load(self, fn):
-        rc_state("Loading model " + fn)
+        rc_state("Loading model {0}".format(fn))
         npz = np.load("model_" + fn + ".npz")
         if npz["Y"].shape == ():
             self._Y = None

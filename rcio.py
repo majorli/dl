@@ -157,7 +157,6 @@ def rc_putstr(*values, t="", sep=" ", end="\n", flush=False):
         pass
 
     print(*values, end="", sep=sep)
-    print("", end=end)
-    print(bcolors.ENDC, end="", flush=flush)
+    print(bcolors.ENDC, end=end, flush=flush)
     return
 
