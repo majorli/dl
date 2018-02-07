@@ -8,7 +8,6 @@ from rcio import *
 
 class Dataset:
     """Dataset"""
-    _name = None                # raw data file, csv, sales records
     _products = {}              # products in the dataset
     _customers = {}             # customers in the dataset
     _axis_p, _axis_c = [], []   # axis of products and customers
@@ -71,8 +70,8 @@ class Dataset:
             print("  2. Put/Remove given customers into/from the whitelist to prevent them to be removed.")
             print("  3. Remove given products.")
             print("  4. Remove given customers.")
-            print("  5. Remove products that be saled by very few customers.")
-            print("  6. Remove customers that saled very few kinds of products.")
+            print("  5. Remove products that be sold by very few customers.")
+            print("  6. Remove customers that sold very few kinds of products.")
             print("  7. Show current whitelists.")
             print("  8. Clear current whitelist of products.")
             print("  9. Clear current whitelist of customers.")
@@ -207,7 +206,7 @@ class Dataset:
                         continue
                     c = "%9.4f by " % dx[i] + self._customers[self._axis_c[i]] + "[" + self._axis_c[i] + "]"
                     print(c)
-                rc_state("This product has been saled by " + str(np.sum(dx > 0.0)) + " different customers")
+                rc_state("This product has been sold by " + str(np.sum(dx > 0.0)) + " different customers")
         else:
             for cid in coords:
                 scid = cid.zfill(9)
@@ -222,7 +221,7 @@ class Dataset:
                         continue
                     p = "%9.4f of " % dx[i] + self._products[self._axis_p[i]] + "[" + self._axis_p[i] + "]"
                     print(p)
-                rc_state("This customer has saled " + str(np.sum(dx > 0.0)) + " kinds of products")
+                rc_state("This customer has sold " + str(np.sum(dx > 0.0)) + " kinds of products")
         return
 
     def plot(self):
@@ -237,9 +236,9 @@ class Dataset:
         return
 
     def save(self, fn):
-        np.savez("ds_" + fn, Mdata=[self._products, self._customers, self._dates], Ds=self._ds)
+        np.savez("data/ds_" + fn, Mdata=[self._products, self._customers, self._dates], Ds=self._ds)
 
-        with open("ds_" + fn + ".csv", "w", newline="") as f:
+        with open("data/ds_" + fn + ".csv", "w", newline="") as f:
             f_csv = csv.writer(f)
             f_csv.writerow([" ", " ", " "] + self._axis_p)
             f_csv.writerow([" ", " ", " "] + [self._products[i] for i in self._axis_p])
@@ -250,8 +249,6 @@ class Dataset:
                 c = self._axis_c[i]
                 row = [c, self._customers[c], count_by_cust[i]] + list(self._ds[:, i])
                 f_csv.writerow(row)
-
-        self._name = fn
         return
 
     def __coords(self, axis, pids):
@@ -260,38 +257,52 @@ class Dataset:
             pcoord.append(axis.index(i))
         return pcoord
 
-    def load(self, fn, ds_type):
+    def load(self):
         """
         Load dataset from csv file
         """
+        ds_type = rc_select("What kind of dataset do you want to load, (0) for raw records or (1) for saved dataset? ")
+   
         if ds_type == 0:
             # csv
-            f = open(fn + ".csv")
-            f_csv = csv.reader(f)
-            headers = next(f_csv)
-            # 0:, 1:customersid, 2:department, 3:enterprise, 4:principal, 5:productname, 6:productid, 7:bizdate, 8:qty
             dates = set()
             p, c = {}, {}
             r = []
-            ds = None
-            rc_state("Loading sales records...")
-            for rec in f_csv:
-                dates.add(rec[7].strip())
-                p[rec[6].strip()] = rec[5].strip()
-                cn = rec[3].strip()
-                if '*' in cn:
-                    cn = rec[4].strip()
-                c[rec[1].strip()] = cn
-                r.append((rec[6].strip(), rec[1].strip(), float(rec[8].strip())))
-            # end for
-            f.close()
+            ## ds = None
+            while True:
+                fn = rc_getstr("Tell me the raw records filename (without ext '.csv'), enter nothing to stop loading raw records: ", keepblank=True, t="highlight")
+                if fn == "":
+                    break
+                if not os.path.exists("raw/" + fn + ".csv"):
+                    rc_fail("File not exists!")
+                    continue
+                len_o = len(r)
+                f = open("raw/" + fn + ".csv")
+                f_csv = csv.reader(f)
+                headers = next(f_csv)
+### 0:CUSTOMERSID, 1:DEPARTNAME, 2:ENTERPRISE, 3:PRINCIPAL, 4:PRODUCTNAME, 5:PRODUCTID, 6:BIZDATE, 7:SUM(A.DEFAULTQTY)
+                rc_state("Loading sales records...")
+                for rec in f_csv:
+                    dates.add(rec[6].strip())
+                    p[rec[5].strip()] = rec[4].strip()
+                    cn = rec[2].strip()
+                    if '*' in cn:
+                        cn = rec[3].strip()
+                    c[rec[0].strip()] = cn
+                    r.append((rec[5].strip(), rec[0].strip(), float(rec[7].strip())))
+                # end for
+                f.close()
+                len_f = len(r)
+                rc_state("{0} raw sales records loaded this time, totally {1} records loaded.".format(len_f - len_o, len_f))
+
             if len(r) == 0:
+                rc_fail("No sales records loaded!")
                 return False
 
+            rc_state("Generating products-customers sales table...")
             nP = len(p)
             nc = len(c)
             n = nP * nc
-            self._name = fn
             self._products = p
             self._customers = c
             self._axis_p = sorted(p)
@@ -301,31 +312,37 @@ class Dataset:
             # self._products_to_predict = []
             px = sorted(p)
             pc = sorted(c)
-            rc_state("Generating products-customers sales table...")
             for rec in r:
                 self._ds[px.index(rec[0]), pc.index(rec[1])] += rec[2]
             # end for
             days = len(dates)
             if days < 7:
-                rc_warn("Hey, you only gave me " + str(days) + " days' sale records. This dataset is hardly useful!")
+                rc_warn("Hey, you only gave me {0} days' sale records. This dataset is hardly useful!".format(days))
             else:
                 if days < 28:
-                    rc_warn(str(days) + " days' records, less than 4 weeks. Anyway, that's not such bad.")
+                    rc_warn("{0} days' records, less than 4 weeks. Anyway, that's not such bad.".format(days))
                 if days % 7 != 0:
-                    rc_warn(str(days) + " days' records, not integral multiple of one week. But don't mind, everything is okay.")
+                    rc_warn("{0} days' records, not integral multiple of one week. But don't mind, everything is okay.".format(days))
                     self._ds = self._ds * 7 / days
                 else:
                     weeks = days // 7
-                    rc_state(str(days) + " days, i.e. " + str(weeks) + " weeks' records. Perfect dataset!")
+                    rc_state("{0} days, i.e. {1} weeks' records. Perfect dataset!".format(days, weeks))
                     self._ds = self._ds / weeks
             self._num_data = np.sum(np.nan_to_num(self._ds) > 0.0)
             return True
         else:
             # npz
-            npz = np.load("ds_" + fn + ".npz")
+            fn = rc_getstr("What's the dataset name? Enter nothing to quit loading: ", keepblank=True, t="highlight")
+            if fn == "":
+                rc_warn("Quit.")
+                return False
+            if not os.path.exists("data/ds_" + fn + ".npz"):
+                rc_fail("File not exists!")
+                return False
+
+            npz = np.load("data/ds_" + fn + ".npz")
             rc_state("Loading from early saved dataset...")
             # np.savez("ds_" + fn, Mdata=[self._products, self._customers, self._dates], Ds=self._ds)
-            self._name = fn
             self._products = npz["Mdata"][0]
             self._customers = npz["Mdata"][1]
             self._axis_p = sorted(self._products)
@@ -336,7 +353,7 @@ class Dataset:
             return True
 
     def states(self):
-        s = "{name}, {num_products:d} products, {num_customers:d} customers, {num_data:d} non-zero data, dataset density = {data_density:.4f}".format(name=self._name, num_products=len(self._axis_p), num_customers=len(self._axis_c), num_data=self._num_data, data_density=round(self.density(), 4))
+        s = "{num_products:d} products, {num_customers:d} customers, {num_data:d} non-zero data, dataset density = {data_density:.2f}%".format(num_products=len(self._axis_p), num_customers=len(self._axis_c), num_data=self._num_data, data_density=self.density() * 100)
         return s
 
     def density(self):

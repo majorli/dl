@@ -56,7 +56,7 @@ class Model:
             self._L2 = 0.1
         else:
             # load from a reference model early saved
-            npz = np.load("model_" + ref + ".npz")
+            npz = np.load("data/model_" + ref + ".npz")
             self._num_features = int(npz["nf"])
             self._algo = str(npz["algo"])
             self._learning_rate = float(npz["lr"])
@@ -85,7 +85,7 @@ class Model:
             name = _products[sid]
             cls.append([cl, sid, name])
         cls.sort(key=lambda x: x[0])
-        with open("clusters_products_" + csvfn + "_" + str(n_p) + "_cls.csv", "w", newline="") as f:
+        with open("results/clusters_products_" + csvfn + "_" + str(n_p) + "_cls.csv", "w", newline="") as f:
             f_csv = csv.writer(f)
             f_csv.writerow(["Cluster", "ProductId", "ProductName"])
             for it in cls:
@@ -98,7 +98,7 @@ class Model:
             name = _customers[sid]
             cls.append([cl, sid, name])
         cls.sort(key=lambda x: x[0])
-        with open("clusters_customers_" + csvfn + "_" + str(n_c) + "_cls.csv", "w", newline="") as f:
+        with open("results/clusters_customers_" + csvfn + "_" + str(n_c) + "_cls.csv", "w", newline="") as f:
             f_csv = csv.writer(f)
             f_csv.writerow(["Cluster", "CustomerSId", "CustomerName"])
             for it in cls:
@@ -309,7 +309,7 @@ class Model:
                 # export prediction results and precisions
                 y = rc_getstr("Exporting results, give me a filename (without extname), nothing to not export: ", t="highlight", keepblank=True)
                 if y != "":
-                    with open("results_tbl_" + y + ".csv", "w", newline="") as f:
+                    with open("results/results_tbl_" + y + ".csv", "w", newline="") as f:
                         f_csv = csv.writer(f)
                         f_csv.writerow([" ", " ", " "] + self._axis_p)
                         f_csv.writerow([" ", " ", " "] + [_products[i] for i in self._axis_p])
@@ -322,7 +322,7 @@ class Model:
                             f_csv.writerow(row)
                             pass
                         pass
-                    with open("results_pre_" + y + ".csv", "w", newline="") as f:
+                    with open("results/results_pre_" + y + ".csv", "w", newline="") as f:
                         f_csv = csv.writer(f)
                         f_csv.writerow(["ProductId", "Product", "CustomerSid", "Customer", "SalesPrediction"])
                         mask_count = np.sum(self._pred_mask, axis=1)
@@ -341,7 +341,7 @@ class Model:
                                 pass
                             pass
                         pass
-                    f_json = open("results_eva_" + y + ".json", "w")
+                    f_json = open("results/results_eva_" + y + ".json", "w")
                     json.dump(self._eva, f_json)
                     f_json.close()
                     rc_result("Results exported.")
@@ -466,12 +466,12 @@ class Model:
         return
 
     def save(self, fn):
-        np.savez("model_" + fn, Y=self._Y, axisp=self._axis_p, axisc=self._axis_c, st=self._steps_trained, nf=self._num_features, X=self._X, Theta=self._Theta, algo=self._algo, lr=self._learning_rate, L2=self._L2)
+        np.savez("data/model_" + fn, Y=self._Y, axisp=self._axis_p, axisc=self._axis_c, st=self._steps_trained, nf=self._num_features, X=self._X, Theta=self._Theta, algo=self._algo, lr=self._learning_rate, L2=self._L2)
         return
 
     def load(self, fn):
         rc_state("Loading model {0}".format(fn))
-        npz = np.load("model_" + fn + ".npz")
+        npz = np.load("data/model_" + fn + ".npz")
         if npz["Y"].shape == ():
             self._Y = None
         else:

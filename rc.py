@@ -59,31 +59,16 @@ def load_dataset():
     if dataset is not None and not rc_ensure("Load dataset will overwrite current dataset, are you sure? (Y/N) ", t="warn"):
         return
 
-    y = rc_select("What kind of dataset do you want to load, (0) for raw records or (1) for saved dataset? ")
-    
-    if y == 0:
-        fn = rc_getstr("Tell me the raw records csv filename (without ext '.csv'): ", keepblank=True)
-        fullname = fn + ".csv"
+    dataset = rcd.Dataset()
+    if dataset.load():
+        rc_result("Okay! Dataset loaded successfully.")
+        rc_result("The data density is {0:.2f}%. You can filter some products or customers that have very small number of sales to make the data density bigger.".format(dataset.density() * 100))
+        if model is not None and g_mask is not None:
+            model.fed(dataset.generate_training_set(g_mask))
+            rc_result("Training set in the model is updated.")
     else:
-        fn = rc_getstr("What's the dataset name? ", keepblank=True)
-        fullname = "ds_" + fn + ".npz"
-    if fn == "":
-        rc_warn("Quit.")
-        return
-    if os.path.exists(fullname):
-        dataset = rcd.Dataset()
-        if dataset.load(fn, y):
-            rc_result("Okay! Dataset '" + fn + "' is loaded.")
-            den = round(dataset.density() * 100, 2)
-            rc_result("The data density is {0:.2f}%. You can filter some products or customers that have very small number of sales to make the data density bigger.".format(den))
-            if model is not None and g_mask is not None:
-                model.fed(dataset.generate_training_set(g_mask))
-                rc_result("Training set in the model is updated.")
-        else:
-            dataset = None
-            rc_fail("This is not a valid dataset!")
-    else:
-        rc_fail("Hey! There's not such a dataset!")
+        dataset = None
+        rc_fail("Loading dataset failed or aborted!")
 
     return
 
@@ -144,7 +129,7 @@ def load_model():
     if y == "":
         rc_warn("Quit.")
         return
-    if not os.path.exists("model_" + y + ".npz"):
+    if not os.path.exists("data/model_" + y + ".npz"):
         rc_warn("Where is this funny '{0}' model?".format(y))
         return
 
@@ -170,7 +155,7 @@ def load_mask():
         rc_warn("Quit.")
         return
     
-    fn = "mask_" + fn + ".json"
+    fn = "data/mask_" + fn + ".json"
     if not os.path.exists(fn):
         rc_fail("Cannot find this mask!")
         return
@@ -183,29 +168,29 @@ def load_mask():
     rc_result("Mask is put on the dataset, model ready. It's show time!")
     return
 
-def _generate_one_round_mask():
+def _generate_one_round_mask(cust_cls):
     global g_mask
 
     fn = None
     while fn is None:
-        fn = rc_getstr("Enter the filename of classes-products table (without .csv): ") + ".csv"
+        fn = "raw/" + rc_getstr("Enter the filename of classes-products table (without .csv): ") + ".csv"
         if not os.path.exists(fn):
             rc_fail("File not found! Try again.")
             fn = None
 
     f = open(fn)
     f_csv = csv.reader(f)
-    # 0:, 1:class, 2:productsid, 3:[X], 4:[X], 5:[X], 6:mask, 7:[X]
+    # 0:class, 1:productid, 2:[X], 3:[X], 4:[X], 5:mask, 6:[X]
     headers = next(f_csv)
     cls_mask = {}
     for rec in f_csv:
         try:
-            m = int(rec[6].strip())
+            m = int(rec[5].strip())
         except ValueError:
             m = 0
         if m == 0:
-            c = rec[1].strip()
-            p = rec[2].strip()
+            c = rec[0].strip()
+            p = rec[1].strip()
             if c in cls_mask:
                 cls_mask[c].append(p)
             else:
@@ -216,22 +201,11 @@ def _generate_one_round_mask():
     # end for
     f.close()
 
-    fn = None
-    while fn is None:
-        fn = rc_getstr("Enter the filename of customers-classes table (without .csv): ") + ".csv"
-        if not os.path.exists(fn):
-            rc_fail("File not found! Try again.")
-            fn = None
-
-    f = open(fn)
-    f_csv = csv.reader(f)
-    # 0:, 1:customersid, 2:customerno, 3:enterprise, 4:dicname(class), 5:isdemocustomer
-    headers = next(f_csv)
     if g_mask is None:
         g_mask = {}
-    for rec in f_csv:
-        p = rec[1].strip()      # customersid
-        c = rec[4].strip()      # class
+    for rec in cust_cls:
+        p = rec[0].strip()      # customersid
+        c = rec[3].strip()      # class
         if c in cls_mask:
             if p in g_mask:
                 g_mask[p] = [x for x in g_mask[p] if x in cls_mask[c]]  # intersection of original mask and current mask
@@ -255,17 +229,37 @@ def generate_mask():
         rc_fail("You should first have a model, man!")
         return
 
+    # load customers-classes table
+    fn = rc_getstr("Enter the filename of customers-classes table (without .csv), enter nothing to quit mask generating: ", t="highlight", keepblank=True)
+    if fn == "":
+        rc_warn("Quit.")
+        return
+    if not os.path.exists("raw/" + fn + ".csv"):
+        rc_fail("File not exists!")
+        return
+
+    cust_cls = []
+    f = open("raw/" + fn + ".csv")
+    f_csv = csv.reader(f)
+    _ = next(f_csv)
+    for rec in f_csv:
+        cust_cls.append(rec)
+    f.close()
+    if len(cust_cls) == 0:
+        rc_fail("Error: Empty table.")
+        return
+
     # generate round by round
     g_mask = None
     rounds = 0
     cont = True
     while cont:
-        _generate_one_round_mask()
+        _generate_one_round_mask(cust_cls)
         rounds = rounds + 1
         cont =  rc_ensure("Week {0:d}: Done! Continue to another week (Y/N)?".format(rounds), t="highlight")
 
     # Save the mask
-    fn = "mask_" + rc_getstr("Global mask needs be saved immediately. Give me a name: ") + ".json"
+    fn = "data/mask_" + rc_getstr("Global mask needs be saved immediately. Give me a name: ") + ".json"
     f = open(fn, "w")
     json.dump(g_mask, f)
     f.close()
