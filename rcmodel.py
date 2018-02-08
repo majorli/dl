@@ -345,7 +345,7 @@ class Model:
                         r_nf = range(100, 500, 50)
                     else:
                         r_nf = set(r_nf)
-                        rc_state("{0} different number of features entered.")
+                        rc_state("{0} different number of features entered.".format(len(r_nf)))
                 elif y[0] == "(" and y[-1] == ")" and len(y) >= 7:
                     # (start, end, step)
                     snf = y[1: -1].split(",")
@@ -381,7 +381,7 @@ class Model:
                         r_l2 = np.arange(0, 1.0, 0.1)
                     else:
                         r_l2 = set(r_l2)
-                        rc_state("{0} different number of features entered.")
+                        rc_state("{0} different number of L2 parameters entered.".format(len(r_l2)))
                 elif y[0] == "(" and y[-1] == ")" and len(y) >= 7:
                     # (start, end, step)
                     snf = y[1: -1].split(",")
