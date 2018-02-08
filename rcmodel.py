@@ -398,12 +398,12 @@ class Model:
                     rc_warn("Incorrect range, use default range (0, 1.0, 0.1).")
                     r_nf = np.arange(0, 1.0, 0.1)
 
-                n_steps = rc_getint("How many steps for each trial (Default: 10000 for adam and plus another 50000 for g.d.)? ", t="highlight", blankas=0)
+                n_steps = rc_getint("How many steps for each trial (Default: 10000 for adam and plus another 80000 for g.d.)? ", t="highlight", blankas=0)
                 n_trials = rc_getint("How many times of trial for each model (Default: 5)? ", t="highlight", blankas=5)
 
-                # f = open("results/trial_log.csv", "a")
-                # f_csv = csv.writer(f)
-                # f_csv.writerow(["TIME", "Algorithm", "Num_Features", "L2 parameter", "Attempt", "Steps"])
+                if not rc_ensure("Do you want to start? This might take a very long time to run and very large disk space to store results. (Y/N) ", t="warn"):
+                    continue
+
                 for __algo in ["Adam", "G.D."]:
                     for __nf in r_nf:
                         for __l2 in r_l2:
@@ -412,7 +412,7 @@ class Model:
                                 if __algo == "Adam":
                                     __lr = 0.01
                                 else:
-                                    __steps = __steps + 50000
+                                    __steps = __steps + 80000
                                     __lr = 0.001
                                 rc_header("TRIAL: Algorithm = {0}, Number of features = {1}, L2 = {2:.2f}, Learning rate = {3:.4f}, learning steps = {4}, Attemps = {5}".format(__algo, __nf, __l2, __lr, __steps, __t + 1))
                                 self._algo = __algo
