@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter, AutoMinorLocator)
 import csv
 import json
+import time
+import os
 
 from rcio import *
 
@@ -205,8 +207,9 @@ class Model:
             print("  6. Plot results.")
             print("  7. Cluster products and customers.")
             print("  8. Save model.")
+            print("  9. Auto-trial.")
             print("  0. Exit model running.")
-            opt = rc_select("What would you like (0..8): ", range_=range(9), t="highlight")
+            opt = rc_select("What would you like (0..8): ", range_=range(10), t="highlight")
             if opt == 0:
                 break
             if opt == 1:
@@ -260,93 +263,13 @@ class Model:
 
                 relu = not rc_ensure("Would you like to keep negative results (Y/N)? ", t="highlight")
                 rc_state("Optimizing...")
-                self.optimize(num_steps)
+                __final_cost = self.optimize(num_steps)
+                rc_result("Final cost = {0:.4f}".format(__final_cost))
                 rc_state("Predicting...")
                 R = _results(self._X, self._Theta, self._Y_mean, relu)
                 rc_state("Evaluating...")
                 # print bias, variance, precisions
-                m_train = (~ self._pred_mask) & (~ self._test_mask)
-                pred_train = R[m_train]
-                real_train = self._Y[m_train]
-                pred_test = R[self._test_mask]
-                real_test = self._Y[self._test_mask]
-                error_train = np.abs(pred_train - real_train)
-                TE_train = np.sum(error_train)
-                AE_train = TE_train / real_train.shape[0]
-                WE_train = np.max(error_train)
-                BE_train = np.min(error_train)
-                Bias = TE_train / np.sum(np.abs(real_train))
-                error_test = np.abs(pred_test - real_test)
-                TE_test = np.sum(error_test)
-                AE_test = TE_test / real_test.shape[0]
-                WE_test = np.max(error_test)
-                BE_test = np.min(error_test)
-                Variance = TE_test / np.sum(np.abs(real_test))
-                self._eva = {
-                        "TE_train" : TE_train,
-                        "AE_train" : AE_train,
-                        "BE_train" : BE_train,
-                        "WE_train" : WE_train,
-                        "Bias" : Bias,
-                        "TE_test" : TE_test,
-                        "AE_test" : AE_test,
-                        "BE_test" : BE_test,
-                        "WE_test" : WE_test,
-                        "Variance" : Variance,
-                        }
-                rc_result("1. Evaluating by {0} training examples:".format(pred_train.shape[0]))
-                rc_result("   TOTAL ERROR = {0}".format(TE_train))
-                rc_result("   AVERAGE ERROR = {0}".format(AE_train))
-                rc_result("   BEST ERROR = {0}".format(BE_train))
-                rc_result("   WORST ERROR = {0}".format(WE_train))
-                rc_warn("   BIAS = {0}".format(Bias))
-                rc_result("2. Evaluating by {0} test examples:".format(pred_test.shape[0]))
-                rc_result("   TOTAL ERROR = {0}".format(TE_test))
-                rc_result("   AVERAGE ERROR = {0}".format(AE_test))
-                rc_result("   BEST ERROR = {0}".format(BE_test))
-                rc_result("   WORST ERROR = {0}".format(WE_test))
-                rc_warn("   VARIANCE = {0}".format(Variance))
-                # export prediction results and precisions
-                y = rc_getstr("Exporting results, give me a filename (without extname), nothing to not export: ", t="highlight", keepblank=True)
-                if y != "":
-                    with open("results/results_tbl_" + y + ".csv", "w", newline="") as f:
-                        f_csv = csv.writer(f)
-                        f_csv.writerow([" ", " ", " "] + self._axis_p)
-                        f_csv.writerow([" ", " ", " "] + [_products[i] for i in self._axis_p])
-                        f_csv.writerow([" ", " ", " "] + list(np.sum(R > 0.0, axis=1)))
-                        count_by_cust = list(np.sum(R > 0.0, axis=0))
-                        nc = len(self._axis_c)
-                        for i in range(nc):
-                            c = self._axis_c[i]
-                            row = [c, _customers[c], count_by_cust[i]] + list(R[:, i])
-                            f_csv.writerow(row)
-                            pass
-                        pass
-                    with open("results/results_pre_" + y + ".csv", "w", newline="") as f:
-                        f_csv = csv.writer(f)
-                        f_csv.writerow(["ProductId", "Product", "CustomerSid", "Customer", "SalesPrediction"])
-                        mask_count = np.sum(self._pred_mask, axis=1)
-                        (nP, nC) = R.shape
-                        for i in range(nP):
-                            if mask_count[i] == 0:
-                                continue
-                            pid = self._axis_p[i]
-                            p = _products[pid]
-                            for j in range(nC):
-                                if self._pred_mask[i, j]:
-                                    cid = self._axis_c[j]
-                                    c = _customers[cid]
-                                    f_csv.writerow([pid, p, cid, c, R[i, j]])
-                                    pass
-                                pass
-                            pass
-                        pass
-                    f_json = open("results/results_eva_" + y + ".json", "w")
-                    json.dump(self._eva, f_json)
-                    f_json.close()
-                    rc_result("Results exported.")
-                else:
-                    rc_warn("Results not exported.")
+                self._result_export(R, _products, _customers, __final_cost)
             elif opt == 6:
                 # plot result
                 fig = plt.figure("Predictions")
@@ -401,10 +324,195 @@ class Model:
                 else:
                     self.save(y)
                     rc_result("Saved Okay as '{0}'.".format(y))
+            elif opt == 9:
+                # auto-trial
+                y = rc_getstr("Enter the range of number of features, [n1, n2, ...] in form of list or (start, end, step) in form of range (Default: range(100, 500, 50)): ", t="highlight", keepblank=True)
+                if y == "":
+                    rc_state("Nothing entered, use default range (100, 500, 50).")
+                    r_nf = range(100, 500, 50)
+                elif y[0] == "[" and y[-1] == "]" and len(y) >= 3:
+                    # [n1, n2, ...]
+                    snf = y[1: -1].split(",")
+                    r_nf = []
+                    for nf in snf:
+                        try:
+                            if int(nf) >= 20:
+                                r_nf.append(int(nf))
+                        except ValueError:
+                            pass
+                    if len(r_nf) == 0:
+                        rc_warn("Incorrect range, use default range (100, 500, 50).")
+                        r_nf = range(100, 500, 50)
+                    else:
+                        r_nf = set(r_nf)
+                        rc_state("{0} different number of features entered.")
+                elif y[0] == "(" and y[-1] == ")" and len(y) >= 7:
+                    # (start, end, step)
+                    snf = y[1: -1].split(",")
+                    if len(snf) < 3:
+                        rc_warn("Incorrect range, use default range (100, 500, 50).")
+                        r_nf = range(100, 500, 50)
+                    else:
+                        try:
+                            r_nf = range(int(snf[0]), int(snf[1]), int(snf[2]))
+                        except ValueError:
+                            rc_warn("Incorrect range, use default range (100, 500, 50).")
+                            r_nf = range(100, 500, 50)
+                else:
+                    rc_warn("Incorrect range, use default range (100, 500, 50).")
+                    r_nf = range(100, 500, 50)
+
+                y = rc_getstr("Enter the range of L2 parameter, [l1, l2, ...] in form of list or (start, end, step) in form of range (Default: range(0, 1.0, 0.1)): ", t="highlight", keepblank=True)
+                if y == "":
+                    rc_state("Nothing entered, use default range (0, 1.0, 0.1).")
+                    r_l2 = np.arange(0, 1.0, 0.1)
+                elif y[0] == "[" and y[-1] == "]" and len(y) >= 3:
+                    # [l1, l2, ...]
+                    snf = y[1: -1].split(",")
+                    r_l2 = []
+                    for nf in snf:
+                        try:
+                            if float(nf) >= 0:
+                                r_l2.append(float(nf))
+                        except ValueError:
+                            pass
+                    if len(r_l2) == 0:
+                        rc_warn("Incorrect range, use default range (0, 1.0, 0.1).")
+                        r_l2 = np.arange(0, 1.0, 0.1)
+                    else:
+                        r_l2 = set(r_l2)
+                        rc_state("{0} different number of features entered.")
+                elif y[0] == "(" and y[-1] == ")" and len(y) >= 7:
+                    # (start, end, step)
+                    snf = y[1: -1].split(",")
+                    if len(snf) < 3:
+                        rc_warn("Incorrect range, use default range (0, 1.0, 0.1).")
+                        r_l2 = np.arange(0, 1.0, 0.1)
+                    else:
+                        try:
+                            r_l2 = np.arange(float(snf[0]), float(snf[1]), float(snf[2]))
+                        except ValueError:
+                            rc_warn("Incorrect range, use default range (0, 1.0, 0.1).")
+                            r_l2 = np.arange(0, 1.0, 0.1)
+                else:
+                    rc_warn("Incorrect range, use default range (0, 1.0, 0.1).")
+                    r_nf = np.arange(0, 1.0, 0.1)
+
+                n_steps = rc_getint("How many steps for each trial (Default: 10000 for adam and plus another 50000 for g.d.)? ", t="highlight", blankas=0)
+                n_trials = rc_getint("How many times of trial for each model (Default: 5)? ", t="highlight", blankas=5)
+
+                # f = open("results/trial_log.csv", "a")
+                # f_csv = csv.writer(f)
+                # f_csv.writerow(["TIME", "Algorithm", "Num_Features", "L2 parameter", "Attempt", "Steps"])
+                for __algo in ["Adam", "G.D."]:
+                    for __nf in r_nf:
+                        for __l2 in r_l2:
+                            for __t in range(n_trials):
+                                __steps = n_steps if n_steps > 0 else 10000
+                                if __algo == "Adam":
+                                    __lr = 0.01
+                                else:
+                                    __steps = __steps + 50000
+                                    __lr = 0.001
+                                rc_header("TRIAL: Algorithm = {0}, Number of features = {1}, L2 = {2:.2f}, Learning rate = {3:.4f}, learning steps = {4}, Attemps = {5}".format(__algo, __nf, __l2, __lr, __steps, __t + 1))
+                                self._algo = __algo
+                                self._num_features = __nf
+                                self._L2 = float(__l2)
+                                self._learning_rate = __lr
+                                self._steps_trained = 0
+                                self._X = None
+                                self._Theta = None
+                                rc_state("Optimizing...")
+                                __final_cost = self.optimize(__steps)
+                                rc_result("Final cost = {0:.4f}".format(__final_cost))
+                                rc_state("Predicting...")
+                                R = _results(self._X, self._Theta, self._Y_mean, True)
+                                rc_state("Evaluating...")
+                                # print bias, variance, precisions
+                                self._result_export(R, _products, _customers, __final_cost, batch_mode=True)
             else:
                 pass
 
         # end while
+        return
+
+    def _result_export(self, R, _products, _customers, __final_cost, batch_mode=False):
+        m_train = (~ self._pred_mask) & (~ self._test_mask)
+        pred_train = R[m_train]
+        real_train = self._Y[m_train]
+        pred_test = R[self._test_mask]
+        real_test = self._Y[self._test_mask]
+        error_train = np.abs(pred_train - real_train)
+        TE_train = np.sum(error_train)
+        AE_train = TE_train / real_train.shape[0]
+        WE_train = np.max(error_train)
+        BE_train = np.min(error_train)
+        Bias = TE_train / np.sum(np.abs(real_train))
+        error_test = np.abs(pred_test - real_test)
+        TE_test = np.sum(error_test)
+        AE_test = TE_test / real_test.shape[0]
+        WE_test = np.max(error_test)
+        BE_test = np.min(error_test)
+        Variance = TE_test / np.sum(np.abs(real_test))
+        rc_result("1. Evaluating by {0} training examples:".format(pred_train.shape[0]))
+        rc_result("   TOTAL ERROR = {0}".format(TE_train))
+        rc_result("   AVERAGE ERROR = {0}".format(AE_train))
+        rc_result("   BEST ERROR = {0}".format(BE_train))
+        rc_result("   WORST ERROR = {0}".format(WE_train))
+        rc_warn("   BIAS = {0}".format(Bias))
+        rc_result("2. Evaluating by {0} test examples:".format(pred_test.shape[0]))
+        rc_result("   TOTAL ERROR = {0}".format(TE_test))
+        rc_result("   AVERAGE ERROR = {0}".format(AE_test))
+        rc_result("   BEST ERROR = {0}".format(BE_test))
+        rc_result("   WORST ERROR = {0}".format(WE_test))
+        rc_warn("   VARIANCE = {0}".format(Variance))
+        # export prediction results and precisions
+        if batch_mode:
+            y = time.strftime("%Y%m%d_%H%M%S", time.localtime(time.time()))
+        else:
+            y = rc_getstr("Exporting results, give me a filename (without extname), nothing to not export: ", t="highlight", keepblank=True)
+        if y == "":
+            rc_warn("Results not exported.")
+            return
+        with open("results/results_tbl_" + y + ".csv", "w", newline="") as f:
+            f_csv = csv.writer(f)
+            f_csv.writerow([" ", " ", " "] + self._axis_p)
+            f_csv.writerow([" ", " ", " "] + [_products[i] for i in self._axis_p])
+            f_csv.writerow([" ", " ", " "] + list(np.sum(R > 0.0, axis=1)))
+            count_by_cust = list(np.sum(R > 0.0, axis=0))
+            nc = len(self._axis_c)
+            for i in range(nc):
+                c = self._axis_c[i]
+                row = [c, _customers[c], count_by_cust[i]] + list(R[:, i])
+                f_csv.writerow(row)
+                pass
+            pass
+        with open("results/results_pre_" + y + ".csv", "w", newline="") as f:
+            f_csv = csv.writer(f)
+            f_csv.writerow(["ProductId", "Product", "CustomerSid", "Customer", "SalesPrediction"])
+            mask_count = np.sum(self._pred_mask, axis=1)
+            (nP, nC) = R.shape
+            for i in range(nP):
+                if mask_count[i] == 0:
+                    continue
+                pid = self._axis_p[i]
+                p = _products[pid]
+                for j in range(nC):
+                    if self._pred_mask[i, j]:
+                        cid = self._axis_c[j]
+                        c = _customers[cid]
+                        f_csv.writerow([pid, p, cid, c, R[i, j]])
+                        pass
+                    pass
+                pass
+            pass
+        __ft = not os.path.exists("results/optimize_log.csv")
+        with open("results/optimize_log.csv", "a", newline="") as f:
+            f_csv = csv.writer(f)
+            if __ft:
+                f_csv.writerow(["NAME", "Algorithm", "Features", "L2 Parameter", "Steps", "Learning rate", "Final cost", "Train points", "Train TE", "Train AE", "Train BE", "Train WE", "Bias", "Test points", "Test TE", "Test AE", "Test BE", "Test WE", "Variance"])
+            f_csv.writerow([y, self._algo, self._num_features, self._L2, self._steps_trained, self._learning_rate, __final_cost, pred_train.shape[0], TE_train, AE_train, BE_train, WE_train, Bias, pred_test.shape[0], TE_test, AE_test, BE_test, WE_test, Variance])
+        rc_result("Results exported.")
         return
 
     def optimize(self, num_steps):
@@ -463,7 +571,7 @@ class Model:
 
         sess.close()
 
-        return
+        return c
 
     def save(self, fn):
         np.savez("data/model_" + fn, Y=self._Y, axisp=self._axis_p, axisc=self._axis_c, st=self._steps_trained, nf=self._num_features, X=self._X, Theta=self._Theta, algo=self._algo, lr=self._learning_rate, L2=self._L2)
@@ -522,7 +630,7 @@ class Model:
         self._pred_mask = np.isnan(self._Y)     # self._Y - self._Y
         self._test_mask = None
 
-        self._steps_traind = 0
+        self._steps_trained = 0
         self._X = None
         self._Theta = None
         rc_result("Okay!")
